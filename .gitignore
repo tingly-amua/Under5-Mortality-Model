@@ -205,3 +205,50 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# ========================
+# DHS PROJECT .gitignore
+# ========================
+
+# Ignore all raw DHS data files (sensitive and very large)
+*.SAS7BDAT
+*.dta
+*.sav
+*.map
+*.dat
+*.txt
+
+# Ignore CSV files by default (some may be too large or restricted)
+*.csv
+
+# Allow specific cleaned CSV(s) to be tracked (override above rule)
+!u5mr_subset.csv
+
+# Ignore Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Ignore system files
+.DS_Store
+Thumbs.db
+
+# Ignore Python cache and virtual environments
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pkl
+*.pklz
+
+# Virtual environment directories
+.env/
+.venv/
+env/
+venv/
+
+# Ignore IDE/editor config
+.vscode/
+.idea/
+
+# Ignore logs and temp
+*.log
+*.tmp
