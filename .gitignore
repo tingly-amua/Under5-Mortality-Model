@@ -223,6 +223,7 @@ __marimo__/
 
 # Allow specific cleaned CSV(s) to be tracked (override above rule)
 !u5mr_subset.csv
+!u5mr_clean.csv
 
 # Ignore Jupyter Notebook checkpoints
 .ipynb_checkpoints/
