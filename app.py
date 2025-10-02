@@ -180,56 +180,34 @@ app.layout = html.Div(
 # Dash Callback
 # ---------------------------
 @app.callback(
-    Output("prediction-chart", "figure"),
+    Output("prediction-output", "children"),
     [Input("predict-button", "n_clicks")],
-    [State("feature-dropdown", "value"), State("target-dropdown", "value")],
+    [State("feature-input", "value"),
+     State("target-dropdown", "value")]
 )
-def update_chart(n_clicks, features_selected, target_value):
-    if n_clicks == 0 or not features_selected or not target_value:
-        return go.Figure().update_layout(
-            title_text="Select features + target, then click Predict",
-            xaxis={"visible": False},
-            yaxis={"visible": False},
-            annotations=[{
-                "text": "Waiting for input...",
-                "xref": "paper", "yref": "paper",
-                "showarrow": False,
-                "font": {"size": 16, "color": "#888"}
-            }],
-        )
+def predict(n_clicks, features, target):
+    if n_clicks > 0:
+        try:
+            # Load dict of models once (better: load globally at app start)
+            with open("final_model.pkl", "rb") as f:
+                trained_models = pickle.load(f)
 
-    try:
-        pred = model.predict([features_selected]).tolist()[0]
-    except Exception as e:
-        return go.Figure().update_layout(
-            title_text="Error",
-            annotations=[{
-                "text": str(e),
-                "xref": "paper", "yref": "paper",
-                "showarrow": False,
-                "font": {"size": 14, "color": "red"}
-            }],
-        )
+            # Select the right model
+            if target not in trained_models:
+                return f"❌ Model for {target} not found."
 
-    color = "red" if pred > 0.5 else "green"
-    icon = "⚠️" if pred > 0.5 else "✅"
+            model = trained_models[target]
 
-    fig = go.Figure(data=[go.Bar(
-        x=[f"{icon} {target_value}"],
-        y=[pred],
-        marker_color=color,
-        text=[f"{pred:.2f}"],
-        textposition="auto"
-    )])
+            # Build input (make sure your features are aligned with training schema)
+            X_input = pd.DataFrame([features], columns=[...])  
 
-    fig.update_layout(
-        title_text=f"Prediction for {target_value}",
-        yaxis_title="Predicted Risk",
-        plot_bgcolor="white",
-        paper_bgcolor="#f5f5f5",
-        font={"color": "#333"},
-    )
-    return fig
+            # Predict
+            prediction = model.predict(X_input)[0]
+            return f"✅ Prediction for {target}: {prediction}"
+
+        except Exception as e:
+            return f"❌ Error: {e}"
+
 
 # ---------------------------
 # Run server
