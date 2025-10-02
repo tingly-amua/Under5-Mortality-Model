@@ -1,6 +1,5 @@
 import os
 import pickle
-import gdown
 import dash
 from dash import dcc, html
 from dash.dependencies import Input, Output, State
@@ -9,77 +8,69 @@ from flask import Flask, jsonify, request
 import dash_bootstrap_components as dbc
 
 # ---------------------------
-# Google Drive file IDs
+# --- File Paths (Local) ----
 # ---------------------------
-FEATURES_FILE_ID = "13G-wF49ooTnQ3tfTvoCh9thy-DmBJj99"  # updated feature_importances.pkl
-MODEL_FILE_ID = "1sxZBckDWmumOd7Yilg4_0oudNlqLOWZu"
-
+# The app now expects these files to be in the same directory.
+# No more downloading from Google Drive.
 FEATURES_PATH = "feature_importances.pkl"
 MODEL_PATH = "final_model.pkl"
 
 # ---------------------------
-# Download files if not present (Heroku-safe)
-# ---------------------------
-for file_id, path in [(FEATURES_FILE_ID, FEATURES_PATH), (MODEL_FILE_ID, MODEL_PATH)]:
-    if not os.path.exists(path):
-        url = f"https://drive.google.com/uc?id={file_id}"
-        print(f"⬇️ Downloading {path} from {url} ...")
-        try:
-            gdown.download(url, path, quiet=False)
-        except Exception as e:
-            print(f"❌ Failed to download {path}: {e}")
-
-# ---------------------------
-# Load features & models safely
+# --- Load features & models safely ---
 # ---------------------------
 try:
     with open(MODEL_PATH, "rb") as f:
         trained_models = pickle.load(f)
+    print("✅ Models loaded successfully from local file.")
 except Exception as e:
-    print("❌ Error loading models:", e)
+    print(f"❌ Error loading models from {MODEL_PATH}: {e}")
+    # Fallback to an empty dictionary if loading fails
     trained_models = {}
 
 try:
     feature_importances = pd.read_pickle(FEATURES_PATH)
     if not isinstance(feature_importances, pd.DataFrame):
         raise ValueError("Pickled file is not a valid DataFrame")
+    print("✅ Feature importances loaded successfully from local file.")
 except Exception as e:
-    print("❌ Error loading feature importances:", e)
+    print(f"❌ Error loading feature importances from {FEATURES_PATH}: {e}")
+    # Fallback to an empty DataFrame if loading fails
     feature_importances = pd.DataFrame(columns=['Target', 'Feature', 'Importance'])
 
 # ---------------------------
-# Extract top features dynamically
-# ---------------------------
-# ---------------------------
-# Extract top features dynamically (robust version)
+# --- Extract top features dynamically (robust version) ---
 # ---------------------------
 def get_top_features(target, top_n=20):
+    """
+    Extracts the top N features for a given target from the feature_importances DataFrame.
+    Includes robust checks for empty data or missing columns.
+    """
     if feature_importances.empty:
-        print("⚠️ Feature importance DataFrame is empty")
+        print("⚠️ Feature importance DataFrame is empty. Cannot extract features.")
         return []
 
-    # Ensure required columns exist
+    # Ensure all required columns exist in the DataFrame
     required_cols = ['Target', 'Feature', 'Importance']
-    for col in required_cols:
-        if col not in feature_importances.columns:
-            print(f"⚠️ Column '{col}' missing in feature_importances")
-            return []
+    if not all(col in feature_importances.columns for col in required_cols):
+        print(f"⚠️ DataFrame is missing one of the required columns: {required_cols}")
+        return []
 
-    # Case-insensitive filtering
-    filtered = feature_importances[
+    # Filter features for the specified target (case-insensitive)
+    filtered_df = feature_importances[
         feature_importances['Target'].str.lower() == target.lower()
     ]
 
-    if filtered.empty:
+    if filtered_df.empty:
         print(f"⚠️ No features found for target: '{target}'. Available targets: {feature_importances['Target'].unique()}")
         return []
 
-    top_features = filtered.nlargest(top_n, 'Importance')['Feature'].tolist()
-    print(f"✅ Top {len(top_features)} features for target '{target}': {top_features[:5]} ...")  # log first 5 for brevity
+    # Get the top N features based on 'Importance'
+    top_features = filtered_df.nlargest(top_n, 'Importance')['Feature'].tolist()
+    print(f"✅ Extracted top {len(top_features)} features for target '{target}'.")
     return top_features
 
 # ---------------------------
-# Load top features
+# --- Load top features for each category ---
 # ---------------------------
 top_features_under5 = get_top_features('Under5')
 top_features_infant = get_top_features('Infant')
@@ -87,16 +78,17 @@ top_features_neonatal = get_top_features('Neonatal')
 
 
 # ---------------------------
-# Flask server
+# --- Flask Server Setup ---
 # ---------------------------
 server = Flask(__name__)
 
 @server.route("/")
 def index():
+    """Landing page HTML."""
     return f"""
     <div style="
-        text-align:center; 
-        font-family:sans-serif; 
+        text-align:center;
+        font-family:sans-serif;
         min-height: 100vh;
         display: flex;
         flex-direction: column;
@@ -128,16 +120,23 @@ def index():
     """
 
 # ---------------------------
-# API endpoint
+# --- API Endpoint for Predictions ---
 # ---------------------------
 @server.route('/api/predict', methods=['POST'])
 def api_predict():
+    """API endpoint to get predictions from the model."""
     data = request.json
-    prediction = trained_models.get("Under5", lambda x: "High Risk")(data)
+    # Example prediction logic for 'Under5' target
+    prediction_model = trained_models.get("Under5")
+    if prediction_model:
+        # This part needs to be implemented based on your model's expected input
+        prediction = "Prediction logic here" # e.g., prediction_model.predict(data)
+    else:
+        prediction = "Model for 'Under5' not found."
     return jsonify({"prediction": prediction})
 
 # ---------------------------
-# Dash app
+# --- Dash App Definition ---
 # ---------------------------
 app = dash.Dash(
     __name__,
@@ -161,46 +160,57 @@ app.layout = dbc.Container([
             id='dropdown-under5',
             options=[{'label': f, 'value': f} for f in top_features_under5],
             placeholder="Predictive features for Under5", multi=True
-        ), width=3),
+        ), width=4),
         dbc.Col(dcc.Dropdown(
             id='dropdown-infant',
             options=[{'label': f, 'value': f} for f in top_features_infant],
             placeholder="Predictive features for Infant", multi=True
-        ), width=3),
+        ), width=4),
         dbc.Col(dcc.Dropdown(
             id='dropdown-neonatal',
             options=[{'label': f, 'value': f} for f in top_features_neonatal],
             placeholder="Predictive features for Neonatal", multi=True
-        ), width=3)
+        ), width=4)
     ], justify="center", className="mb-4"),
 
     dbc.Row([dbc.Col(html.Button("Predict", id='predict-btn', n_clicks=0, className="btn btn-success"), width="auto")],
             justify="center", className="mb-4"),
 
-    dbc.Row([dbc.Col(html.Div(id='prediction-output', className="text-center"), width=12)])
+    dbc.Row([dbc.Col(html.Div(id='prediction-output', className="text-center mt-3"), width=12)])
 ], fluid=True)
 
 @app.callback(
     Output('prediction-output', 'children'),
     Input('predict-btn', 'n_clicks'),
-    State('dropdown-under5', 'value'),
-    State('dropdown-infant', 'value'),
-    State('dropdown-neonatal', 'value')
+    [State('dropdown-under5', 'value'),
+     State('dropdown-infant', 'value'),
+     State('dropdown-neonatal', 'value')]
 )
 def make_prediction(n_clicks, under5_features, infant_features, neonatal_features):
     if n_clicks < 1:
-        return "ℹ️ Select features and click Predict."
+        return "ℹ️ Select features from the dropdowns and click Predict."
+    
+    # Create a DataFrame or dictionary from selected features for the model
+    # Note: This is a placeholder. You will need to adapt this to match
+    # the exact input format your trained model expects.
     selected_features = {
-        'Under5': under5_features or [],
-        'Infant': infant_features or [],
-        'Neonatal': neonatal_features or []
+        'Under5_Features': under5_features or [],
+        'Infant_Features': infant_features or [],
+        'Neonatal_Features': neonatal_features or []
     }
-    return f"✅ Selected features for prediction: {selected_features}"
+    
+    # Placeholder for actual prediction logic
+    # prediction_result = trained_models['Under5'].predict(input_data)
+    
+    return f"✅ Prediction logic would run with these features: {selected_features}"
 
 # ---------------------------
-# Run server
+# --- Run Server ---
 # ---------------------------
 if __name__ == "__main__":
+    # Ensure the static directory exists if you have local assets like CSS or images
     os.makedirs("static", exist_ok=True)
+    # Use the PORT environment variable provided by Heroku
     port = int(os.environ.get("PORT", 8050))
-    server.run(debug=True, port=port)
+    # Set debug=False for production environments like Heroku
+    server.run(host="0.0.0.0", port=port, debug=False)
