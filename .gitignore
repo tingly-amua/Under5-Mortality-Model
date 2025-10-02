@@ -14,8 +14,9 @@
 *.csv
 
 # Allow specific cleaned CSV(s) to be tracked (override above rule)
-!u5mr_subset.csv
-!u5mr_clean.csv
+# NOTE: For Heroku deployment, you might still want to comment these out if using runtime download
+# !u5mr_subset.csv
+# !u5mr_clean.csv
 
 # Ignore Jupyter Notebook checkpoints (but keep .ipynb files as deliverables)
 .ipynb_checkpoints/
@@ -100,7 +101,7 @@ cover/
 *.mo
 *.pot
 
-# Flask stuff:
+# Flask stuff
 instance/
 .webassets-cache
 
