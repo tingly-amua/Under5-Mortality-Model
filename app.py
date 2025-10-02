@@ -26,7 +26,7 @@ for file_id, path in [(FEATURES_FILE_ID, FEATURES_PATH), (MODEL_FILE_ID, MODEL_P
         gdown.download(url, path, quiet=False)
 
 # ---------------------------
-# Load features & models
+# Load features & models safely
 # ---------------------------
 try:
     with open(MODEL_PATH, "rb") as f:
@@ -37,18 +37,33 @@ except Exception as e:
 
 try:
     feature_importances = pd.read_pickle(FEATURES_PATH)
+    if not isinstance(feature_importances, pd.DataFrame):
+        raise ValueError("Pickled file is not a valid DataFrame")
 except Exception as e:
     print("❌ Error loading feature importances:", e)
-    feature_importances = pd.DataFrame()
+    feature_importances = pd.DataFrame(columns=['Target', 'Feature', 'Importance'])
 
 # ---------------------------
 # Extract top features dynamically
 # ---------------------------
 def get_top_features(target, top_n=20):
     """Return top N features for a given target from the feature importance DataFrame."""
+    if feature_importances.empty:
+        print("⚠️ Feature importance DataFrame is empty")
+        return []
+    
+    required_cols = ['Target', 'Feature', 'Importance']
+    for col in required_cols:
+        if col not in feature_importances.columns:
+            print(f"⚠️ Column '{col}' missing in feature_importances")
+            return []
+    
     filtered = feature_importances[feature_importances['Target'] == target]
-    top_features = filtered.nlargest(top_n, 'Importance')['Feature'].tolist()
-    return top_features
+    if filtered.empty:
+        print(f"⚠️ No features found for target: {target}")
+        return []
+    
+    return filtered.nlargest(top_n, 'Importance')['Feature'].tolist()
 
 top_features_under5 = get_top_features('Under5')
 top_features_infant = get_top_features('Infant')
@@ -99,7 +114,7 @@ def index():
 @server.route('/api/predict', methods=['POST'])
 def api_predict():
     data = request.json
-    # TODO: replace with actual model prediction logic
+    # Fallback prediction if model missing
     prediction = trained_models.get("Under5", lambda x: "High Risk")(data)
     return jsonify({"prediction": prediction})
 
@@ -120,17 +135,12 @@ app = dash.Dash(
 app.layout = dbc.Container([
     dbc.Row([dbc.Col(html.H1("Afya-Toto Dashboard", className="text-center text-primary mb-4"), width=12)]),
 
-    # Target variable buttons
     dbc.Row([
-        dbc.Col(html.Button("Under5", id='btn-under5', n_clicks=0,
-                            className="btn btn-info mx-2"), width="auto"),
-        dbc.Col(html.Button("Infant", id='btn-infant', n_clicks=0,
-                            className="btn btn-info mx-2"), width="auto"),
-        dbc.Col(html.Button("Neonatal", id='btn-neonatal', n_clicks=0,
-                            className="btn btn-info mx-2"), width="auto")
+        dbc.Col(html.Button("Under5", id='btn-under5', n_clicks=0, className="btn btn-info mx-2"), width="auto"),
+        dbc.Col(html.Button("Infant", id='btn-infant', n_clicks=0, className="btn btn-info mx-2"), width="auto"),
+        dbc.Col(html.Button("Neonatal", id='btn-neonatal', n_clicks=0, className="btn btn-info mx-2"), width="auto")
     ], justify="center", className="mb-4"),
 
-    # Predictive feature dropdowns
     dbc.Row([
         dbc.Col(dcc.Dropdown(
             id='dropdown-under5',
@@ -149,12 +159,9 @@ app.layout = dbc.Container([
         ), width=3)
     ], justify="center", className="mb-4"),
 
-    # Predict button
-    dbc.Row([dbc.Col(html.Button("Predict", id='predict-btn', n_clicks=0,
-                                 className="btn btn-success"), width="auto")],
+    dbc.Row([dbc.Col(html.Button("Predict", id='predict-btn', n_clicks=0, className="btn btn-success"), width="auto")],
             justify="center", className="mb-4"),
 
-    # Prediction output
     dbc.Row([dbc.Col(html.Div(id='prediction-output', className="text-center"), width=12)])
 ], fluid=True)
 
@@ -172,9 +179,9 @@ def make_prediction(n_clicks, under5_features, infant_features, neonatal_feature
     if n_clicks < 1:
         return "ℹ️ Select features and click Predict."
     selected_features = {
-        'Under5': under5_features,
-        'Infant': infant_features,
-        'Neonatal': neonatal_features
+        'Under5': under5_features or [],
+        'Infant': infant_features or [],
+        'Neonatal': neonatal_features or []
     }
     # TODO: insert actual prediction logic using trained_models
     return f"✅ Selected features for prediction: {selected_features}"
