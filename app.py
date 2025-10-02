@@ -52,20 +52,10 @@ except Exception as e:
 # ---------------------------
 def get_top_features(target, top_n=20):
     if feature_importances.empty:
-        print("⚠️ Feature importance DataFrame is empty")
         return []
-
-    required_cols = ['Target', 'Feature', 'Importance']
-    for col in required_cols:
-        if col not in feature_importances.columns:
-            print(f"⚠️ Column '{col}' missing in feature_importances")
-            return []
-
     filtered = feature_importances[feature_importances['Target'] == target]
     if filtered.empty:
-        print(f"⚠️ No features found for target: {target}")
         return []
-
     return filtered.nlargest(top_n, 'Importance')['Feature'].tolist()
 
 top_features_under5 = get_top_features('Under5')
@@ -79,7 +69,7 @@ server = Flask(__name__)
 
 @server.route("/")
 def index():
-    return """
+    return f"""
     <div style="
         text-align:center; 
         font-family:sans-serif; 
@@ -88,16 +78,17 @@ def index():
         flex-direction: column;
         justify-content: center;
         align-items: center;
-        background: linear-gradient(to bottom, #a0e1fa, #d7f4fa);
+        background: url('/static/background.jpg') no-repeat center center fixed;
+        background-size: cover;
         color: #004080;
     ">
-        <h1 style='font-size: 4em;'>👶 Afya Toto</h1>
-        <p style='font-size: 1.5em; max-width:600px;'>
+        <h1 style='font-size: 4em; background:rgba(255,255,255,0.7); padding:10px; border-radius:10px;'>👶 Afya Toto</h1>
+        <p style='font-size: 1.5em; max-width:800px; background:rgba(255,255,255,0.7); padding:10px; border-radius:10px;'>
         Protecting Children’s Health Through Data Insights
         </p>
-        <img src='https://i.pinimg.com/1200x/97/a9/1c/97a91c944845237ef509452fec78863f.jpg'
-             alt='Child Health' style='width:300px; margin:20px; border-radius:15px;'/>
-        <p style='max-width:600px;'>Under-5 Mortality Rate: 45/1000 | SDG 3 Goal: Reduce Child Mortality</p>
+        <p style='max-width:800px; background:rgba(255,255,255,0.7); padding:10px; border-radius:10px;'>
+        Under-5 Mortality Rate: 45/1000 | SDG 3 Goal: Reduce Child Mortality
+        </p>
         <a href='/dashboard/' style='
             display:inline-block;
             margin-top:25px;
@@ -112,6 +103,9 @@ def index():
     </div>
     """
 
+# ---------------------------
+# API endpoint
+# ---------------------------
 @server.route('/api/predict', methods=['POST'])
 def api_predict():
     data = request.json
@@ -183,5 +177,6 @@ def make_prediction(n_clicks, under5_features, infant_features, neonatal_feature
 # Run server
 # ---------------------------
 if __name__ == "__main__":
+    os.makedirs("static", exist_ok=True)
     port = int(os.environ.get("PORT", 8050))
     server.run(debug=True, port=port)
