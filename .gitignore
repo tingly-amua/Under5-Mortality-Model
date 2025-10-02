@@ -29,7 +29,8 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
-# (Pickle files are allowed — removed *.pkl / *.pklz)
+*.pkl
+*.pklz
 
 # Virtual environment directories
 .env/
