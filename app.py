@@ -2,6 +2,7 @@ import os
 import pickle
 import gdown
 import dash
+import pandas as pd
 from dash import dcc, html
 from dash.dependencies import Input, Output, State
 import plotly.graph_objects as go
@@ -26,31 +27,30 @@ for file_id, path in [(FEATURES_FILE_ID, FEATURES_PATH), (MODEL_FILE_ID, MODEL_P
         gdown.download(url, path, quiet=False)
 
 # ---------------------------
-# Load features & model
+# Load features & models
 # ---------------------------
 try:
-    with open(FEATURES_PATH, "rb") as f:
-        feature_importances = pickle.load(f)
+    with open(MODEL_PATH, "rb") as f:
+        trained_models = pickle.load(f)  # dict: {'Under-5': model, 'Infant': model, 'Neonatal': model}
+    print("✅ Models loaded.")
+except Exception as e:
+    print("❌ Error loading models:", e)
+    trained_models = {}
+
+try:
+    feature_importances = pd.read_pickle(FEATURES_PATH)
     print("✅ Feature importances loaded.")
 except Exception as e:
     print("❌ Error loading feature importances:", e)
-    feature_importances = []
+    feature_importances = pd.DataFrame()
 
-# Kenya-focused top features
+# Kenya-focused features (simplified for UI)
 kenya_features = [
     'num__child_death_history', 'cat__Region_Kwale', 'num__Weight/Age standard deviation (new WHO)',
     'num__Childs height in centimeters (1 decimal)', 'cat__Region_Isiolo', 'cat__Region_Laikipia',
     'cat__Region_Mombasa', 'cat__Region_Nairobi', 'cat__Region_Baringo',
     'num__Childs weight in kilograms (1 decimal)'
 ]
-
-try:
-    with open(MODEL_PATH, "rb") as f:
-        model = pickle.load(f)
-    print("✅ Model loaded.")
-except Exception as e:
-    print("❌ Error loading model:", e)
-    model = None
 
 # ---------------------------
 # Flask server
@@ -134,7 +134,7 @@ app.layout = html.Div(
                     dcc.Dropdown(
                         id="target-dropdown",
                         options=[
-                            {"label": "Under-5", "value": "Under5"},
+                            {"label": "Under-5", "value": "Under-5"},
                             {"label": "Infant", "value": "Infant"},
                             {"label": "Neonatal", "value": "Neonatal"}
                         ],
@@ -166,6 +166,9 @@ app.layout = html.Div(
             style={"flex": "3", "padding": "30px", "backgroundColor": "#f5f5f5"},
             children=[
                 html.H2("📊 Prediction Results", style={"color": "#333", "marginBottom": "20px"}),
+
+                html.Div(id="prediction-output", style={"fontSize": "20px", "marginTop": "20px"}),
+
                 dcc.Loading(
                     id="loading-spinner",
                     type="circle",
@@ -180,34 +183,38 @@ app.layout = html.Div(
 # Dash Callback
 # ---------------------------
 @app.callback(
-    Output("prediction-output", "children"),
+    [Output("prediction-output", "children"),
+     Output("prediction-chart", "figure")],
     [Input("predict-button", "n_clicks")],
-    [State("feature-input", "value"),
+    [State("feature-dropdown", "value"),
      State("target-dropdown", "value")]
 )
 def predict(n_clicks, features, target):
-    if n_clicks > 0:
-        try:
-            # Load dict of models once (better: load globally at app start)
-            with open("final_model.pkl", "rb") as f:
-                trained_models = pickle.load(f)
+    if n_clicks < 1:
+        return "ℹ️ Select inputs and click Predict.", go.Figure()
 
-            # Select the right model
-            if target not in trained_models:
-                return f"❌ Model for {target} not found."
+    if not target or target not in trained_models:
+        return f"❌ Model for {target} not found.", go.Figure()
 
-            model = trained_models[target]
+    try:
+        model = trained_models[target]
 
-            # Build input (make sure your features are aligned with training schema)
-            X_input = pd.DataFrame([features], columns=[...])  
+        # For now, dummy input (all zeros). Later: replace with real user inputs.
+        X_input = pd.DataFrame([[0] * len(features)], columns=features)
 
-            # Predict
-            prediction = model.predict(X_input)[0]
-            return f"✅ Prediction for {target}: {prediction}"
+        pred = model.predict(X_input)[0]
 
-        except Exception as e:
-            return f"❌ Error: {e}"
+        # Simple chart
+        fig = go.Figure(go.Indicator(
+            mode="number",
+            value=pred,
+            title={"text": f"Prediction for {target}"}
+        ))
 
+        return f"✅ Prediction for {target}: {pred}", fig
+
+    except Exception as e:
+        return f"❌ Error: {e}", go.Figure()
 
 # ---------------------------
 # Run server
