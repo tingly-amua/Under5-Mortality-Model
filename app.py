@@ -1,11 +1,11 @@
 import os
 import pickle
-import gdown  # for downloading from Google Drive
+import gdown
 import dash
 from dash import dcc, html
 from dash.dependencies import Input, Output, State
 import plotly.graph_objects as go
-from flask import Flask, request, jsonify
+from flask import Flask
 
 # ---------------------------
 # Google Drive file IDs
@@ -30,13 +30,19 @@ for file_id, path in [(FEATURES_FILE_ID, FEATURES_PATH), (MODEL_FILE_ID, MODEL_P
 # ---------------------------
 try:
     with open(FEATURES_PATH, "rb") as f:
-        feature_df = pickle.load(f)
+        feature_importances = pickle.load(f)
     print("✅ Feature importances loaded.")
-    # Extract unique features
-    features_list = feature_df["Feature"].unique().tolist()
 except Exception as e:
     print("❌ Error loading feature importances:", e)
-    features_list = []
+    feature_importances = []
+
+# Kenya-focused top features
+kenya_features = [
+    'num__child_death_history', 'cat__Region_Kwale', 'num__Weight/Age standard deviation (new WHO)',
+    'num__Childs height in centimeters (1 decimal)', 'cat__Region_Isiolo', 'cat__Region_Laikipia',
+    'cat__Region_Mombasa', 'cat__Region_Nairobi', 'cat__Region_Baringo',
+    'num__Childs weight in kilograms (1 decimal)'
+]
 
 try:
     with open(MODEL_PATH, "rb") as f:
@@ -58,7 +64,7 @@ def index():
         text-align:center; 
         font-family:sans-serif; 
         height: 100vh;
-        background-image: url('https://via.placeholder.com/1200x800.png?text=Children+Background');
+        background-image: url('https://i.pinimg.com/1200x/97/a9/1c/97a91c944845237ef509452fec78863f.jpg');
         background-size: cover;
         background-position: center;
         display: flex;
@@ -69,7 +75,7 @@ def index():
         text-shadow: 1px 1px 4px rgba(0,0,0,0.7);
     ">
         <h1>👶 Afya-Toto</h1>
-        <p>Under-5 Mortality Risk Prediction Tool</p>
+        <p>Under-5 Mortality Risk Prediction Tool - Kenya</p>
         <a href='/dashboard/' style='
             display:inline-block;
             margin-top:20px;
@@ -111,13 +117,14 @@ app.layout = html.Div(
                 html.P("Select feature(s):", style={"fontWeight": "bold"}),
                 dcc.Dropdown(
                     id="feature-dropdown",
-                    options=[{"label": f, "value": f} for f in features_list],
+                    options=[{"label": f, "value": f} for f in kenya_features],
                     placeholder="Select feature(s)",
                     multi=True,
                     style={"marginBottom": "20px"},
+                    searchable=True
                 ),
 
-                html.P("Select target:", style={"fontWeight": "bold"}),
+                html.P("Select target variable:", style={"fontWeight": "bold"}),
                 dcc.Dropdown(
                     id="target-dropdown",
                     options=[
@@ -178,13 +185,13 @@ def update_chart(n_clicks, features_selected, target_value):
             annotations=[{
                 "text": "Waiting for input...",
                 "xref": "paper", "yref": "paper",
-                "showarrow": False, "font": {"size": 16, "color": "#888"}
+                "showarrow": False,
+                "font": {"size": 16, "color": "#888"}
             }],
         )
 
     try:
-        # TODO: Map selected feature names to actual numeric values before prediction
-        # For now, assume features_selected is numeric and ordered correctly
+        # Convert selected features to proper input shape if needed
         pred = model.predict([features_selected]).tolist()[0]
     except Exception as e:
         return go.Figure().update_layout(
