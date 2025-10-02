@@ -50,17 +50,41 @@ except Exception as e:
 # ---------------------------
 # Extract top features dynamically
 # ---------------------------
+# ---------------------------
+# Extract top features dynamically (robust version)
+# ---------------------------
 def get_top_features(target, top_n=20):
     if feature_importances.empty:
+        print("⚠️ Feature importance DataFrame is empty")
         return []
-    filtered = feature_importances[feature_importances['Target'] == target]
-    if filtered.empty:
-        return []
-    return filtered.nlargest(top_n, 'Importance')['Feature'].tolist()
 
+    # Ensure required columns exist
+    required_cols = ['Target', 'Feature', 'Importance']
+    for col in required_cols:
+        if col not in feature_importances.columns:
+            print(f"⚠️ Column '{col}' missing in feature_importances")
+            return []
+
+    # Case-insensitive filtering
+    filtered = feature_importances[
+        feature_importances['Target'].str.lower() == target.lower()
+    ]
+
+    if filtered.empty:
+        print(f"⚠️ No features found for target: '{target}'. Available targets: {feature_importances['Target'].unique()}")
+        return []
+
+    top_features = filtered.nlargest(top_n, 'Importance')['Feature'].tolist()
+    print(f"✅ Top {len(top_features)} features for target '{target}': {top_features[:5]} ...")  # log first 5 for brevity
+    return top_features
+
+# ---------------------------
+# Load top features
+# ---------------------------
 top_features_under5 = get_top_features('Under5')
 top_features_infant = get_top_features('Infant')
 top_features_neonatal = get_top_features('Neonatal')
+
 
 # ---------------------------
 # Flask server
