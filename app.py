@@ -5,7 +5,6 @@ import dash
 from dash import dcc, html
 from dash.dependencies import Input, Output, State
 import pandas as pd
-import plotly.express as px
 from flask import Flask, jsonify, request
 import dash_bootstrap_components as dbc
 
@@ -42,12 +41,14 @@ except Exception as e:
     print("❌ Error loading feature importances:", e)
     feature_importances = pd.DataFrame()
 
+# ---------------------------
 # Extract top features dynamically
+# ---------------------------
 def get_top_features(target, top_n=20):
-    if target in feature_importances.columns:
-        return feature_importances[target].nlargest(top_n).index.tolist()
-    else:
-        return []
+    """Return top N features for a given target from the feature importance DataFrame."""
+    filtered = feature_importances[feature_importances['Target'] == target]
+    top_features = filtered.nlargest(top_n, 'Importance')['Feature'].tolist()
+    return top_features
 
 top_features_under5 = get_top_features('Under5')
 top_features_infant = get_top_features('Infant')
@@ -94,11 +95,11 @@ def index():
     </div>
     """
 
-# Example API route for programmatic prediction
+# API route for programmatic prediction
 @server.route('/api/predict', methods=['POST'])
 def api_predict():
     data = request.json
-    # TODO: use actual model
+    # TODO: replace with actual model prediction logic
     prediction = trained_models.get("Under5", lambda x: "High Risk")(data)
     return jsonify({"prediction": prediction})
 
@@ -113,25 +114,11 @@ app = dash.Dash(
     suppress_callback_exceptions=True
 )
 
-# Sample region chart
-df_regions = pd.DataFrame({
-    "Region": ["Nairobi", "Coast", "Rift Valley", "Nyanza"],
-    "MortalityRate": [45, 60, 75, 90]
-})
-
 # ---------------------------
 # Dash layout
 # ---------------------------
 app.layout = dbc.Container([
     dbc.Row([dbc.Col(html.H1("Afya-Toto Dashboard", className="text-center text-primary mb-4"), width=12)]),
-
-    # Mortality chart
-    dbc.Row([
-        dbc.Col(dcc.Graph(
-            id='mortality-chart',
-            figure=px.bar(df_regions, x="Region", y="MortalityRate", title="Under-5 Mortality by Region")
-        ), width=12)
-    ], className="mb-5"),
 
     # Target variable buttons
     dbc.Row([
