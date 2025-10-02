@@ -17,7 +17,7 @@ FEATURES_PATH = "feature_importances.pkl"
 MODEL_PATH = "final_model.pkl"
 
 # ---------------------------
-# Download from Google Drive if not present
+# Download files if not present
 # ---------------------------
 for file_id, path in [(FEATURES_FILE_ID, FEATURES_PATH), (MODEL_FILE_ID, MODEL_PATH)]:
     if not os.path.exists(path):
@@ -26,7 +26,7 @@ for file_id, path in [(FEATURES_FILE_ID, FEATURES_PATH), (MODEL_FILE_ID, MODEL_P
         gdown.download(url, path, quiet=False)
 
 # ---------------------------
-# Load feature importances and model
+# Load features & model
 # ---------------------------
 try:
     with open(FEATURES_PATH, "rb") as f:
@@ -72,25 +72,26 @@ def index():
         justify-content: center;
         align-items: center;
         color: white;
-        text-shadow: 1px 1px 4px rgba(0,0,0,0.7);
+        text-shadow: 1px 1px 5px rgba(0,0,0,0.7);
     ">
-        <h1>👶 Afya-Toto</h1>
-        <p>Under-5 Mortality Risk Prediction Tool - Kenya</p>
+        <h1 style='font-size: 4em;'>👶 Afya-Toto</h1>
+        <p style='font-size: 1.5em;'>Under-5 Mortality Risk Prediction Tool - Kenya</p>
         <a href='/dashboard/' style='
             display:inline-block;
-            margin-top:20px;
-            padding:10px 20px;
+            margin-top:25px;
+            padding:15px 30px;
             background:#007BFF;
             color:white;
-            border-radius:5px;
+            border-radius:10px;
             text-decoration:none;
             font-weight:bold;
+            font-size: 18px;
         '>Go to Dashboard</a>
     </div>
     """
 
 # ---------------------------
-# Dash app for dashboard
+# Dash app
 # ---------------------------
 app = dash.Dash(
     __name__,
@@ -101,40 +102,45 @@ app = dash.Dash(
 
 # Layout
 app.layout = html.Div(
-    style={"display": "flex", "flexDirection": "row", "minHeight": "100vh"},
+    style={"display": "flex", "minHeight": "100vh", "fontFamily": "sans-serif"},
     children=[
         # Sidebar
         html.Div(
             style={
                 "flex": "1",
-                "backgroundColor": "#e9f7f5",
-                "padding": "20px",
-                "borderRight": "2px solid #ccc"
+                "backgroundColor": "#e0f7fa",
+                "padding": "30px",
+                "borderRight": "2px solid #b2ebf2",
+                "display": "flex",
+                "flexDirection": "column",
+                "justifyContent": "flex-start"
             },
             children=[
-                html.H2("👶 Afya-Toto Inputs", style={"textAlign": "center", "color": "#007BFF"}),
+                html.H2("👶 Afya-Toto Inputs", style={"textAlign": "center", "color": "#007BFF", "marginBottom": "30px"}),
 
-                html.P("Select feature(s):", style={"fontWeight": "bold"}),
-                dcc.Dropdown(
-                    id="feature-dropdown",
-                    options=[{"label": f, "value": f} for f in kenya_features],
-                    placeholder="Select feature(s)",
-                    multi=True,
-                    style={"marginBottom": "20px"},
-                    searchable=True
-                ),
+                html.Div(style={"marginBottom": "20px"}, children=[
+                    html.P("Select feature(s):", style={"fontWeight": "bold"}),
+                    dcc.Dropdown(
+                        id="feature-dropdown",
+                        options=[{"label": f, "value": f} for f in kenya_features],
+                        placeholder="Select feature(s)",
+                        multi=True,
+                        searchable=True,
+                    ),
+                ]),
 
-                html.P("Select target variable:", style={"fontWeight": "bold"}),
-                dcc.Dropdown(
-                    id="target-dropdown",
-                    options=[
-                        {"label": "Under-5", "value": "Under5"},
-                        {"label": "Infant", "value": "Infant"},
-                        {"label": "Neonatal", "value": "Neonatal"}
-                    ],
-                    placeholder="Select target variable",
-                    style={"marginBottom": "20px"},
-                ),
+                html.Div(style={"marginBottom": "20px"}, children=[
+                    html.P("Select target variable:", style={"fontWeight": "bold"}),
+                    dcc.Dropdown(
+                        id="target-dropdown",
+                        options=[
+                            {"label": "Under-5", "value": "Under5"},
+                            {"label": "Infant", "value": "Infant"},
+                            {"label": "Neonatal", "value": "Neonatal"}
+                        ],
+                        placeholder="Select target variable",
+                    ),
+                ]),
 
                 html.Button(
                     "👶 Predict",
@@ -142,12 +148,14 @@ app.layout = html.Div(
                     n_clicks=0,
                     style={
                         "width": "100%",
-                        "padding": "10px",
+                        "padding": "12px",
                         "backgroundColor": "#007BFF",
                         "color": "white",
                         "border": "none",
-                        "borderRadius": "5px",
-                        "fontSize": "16px"
+                        "borderRadius": "8px",
+                        "fontSize": "16px",
+                        "cursor": "pointer",
+                        "marginTop": "10px"
                     },
                 ),
             ],
@@ -155,9 +163,9 @@ app.layout = html.Div(
 
         # Main panel
         html.Div(
-            style={"flex": "3", "padding": "20px", "backgroundColor": "#f9f9f9"},
+            style={"flex": "3", "padding": "30px", "backgroundColor": "#f5f5f5"},
             children=[
-                html.H2("📊 Prediction Results", style={"color": "#333"}),
+                html.H2("📊 Prediction Results", style={"color": "#333", "marginBottom": "20px"}),
                 dcc.Loading(
                     id="loading-spinner",
                     type="circle",
@@ -191,7 +199,6 @@ def update_chart(n_clicks, features_selected, target_value):
         )
 
     try:
-        # Convert selected features to proper input shape if needed
         pred = model.predict([features_selected]).tolist()[0]
     except Exception as e:
         return go.Figure().update_layout(
@@ -219,7 +226,7 @@ def update_chart(n_clicks, features_selected, target_value):
         title_text=f"Prediction for {target_value}",
         yaxis_title="Predicted Risk",
         plot_bgcolor="white",
-        paper_bgcolor="#f9f9f9",
+        paper_bgcolor="#f5f5f5",
         font={"color": "#333"},
     )
     return fig
