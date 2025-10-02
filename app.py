@@ -6,7 +6,6 @@ from dash import dcc, html
 from dash.dependencies import Input, Output, State
 import pandas as pd
 import plotly.express as px
-import plotly.graph_objects as go
 from flask import Flask, jsonify, request
 import dash_bootstrap_components as dbc
 
@@ -43,10 +42,16 @@ except Exception as e:
     print("❌ Error loading feature importances:", e)
     feature_importances = pd.DataFrame()
 
-# Example top 20 features per target
-top_features_under5 = [f"Feature_U{i}" for i in range(1, 21)]
-top_features_infant = [f"Feature_I{i}" for i in range(1, 21)]
-top_features_neonatal = [f"Feature_N{i}" for i in range(1, 21)]
+# Extract top features dynamically
+def get_top_features(target, top_n=20):
+    if target in feature_importances.columns:
+        return feature_importances[target].nlargest(top_n).index.tolist()
+    else:
+        return []
+
+top_features_under5 = get_top_features('Under5')
+top_features_infant = get_top_features('Infant')
+top_features_neonatal = get_top_features('Neonatal')
 
 # ---------------------------
 # Flask server
@@ -60,19 +65,21 @@ def index():
     <div style="
         text-align:center; 
         font-family:sans-serif; 
-        height: 100vh;
-        background-image: url('https://i.pinimg.com/1200x/97/a9/1c/97a91c944845237ef509452fec78863f.jpg');
-        background-size: cover;
-        background-position: center;
+        min-height: 100vh;
         display: flex;
         flex-direction: column;
         justify-content: center;
         align-items: center;
-        color: white;
-        text-shadow: 1px 1px 5px rgba(0,0,0,0.7);
+        background: linear-gradient(to bottom, #a0e1fa, #d7f4fa);
+        color: #004080;
     ">
-        <h1 style='font-size: 4em;'>👶 Afya-Toto</h1>
-        <p style='font-size: 1.5em;'>Under-5 Mortality Risk Prediction Tool - Kenya</p>
+        <h1 style='font-size: 4em;'>👶 Afya Toto</h1>
+        <p style='font-size: 1.5em; max-width:600px;'>
+        Protecting Children’s Health Through Data Insights
+        </p>
+        <img src='https://i.pinimg.com/1200x/97/a9/1c/97a91c944845237ef509452fec78863f.jpg'
+             alt='Child Health' style='width:300px; margin:20px; border-radius:15px;'/>
+        <p style='max-width:600px;'>Under-5 Mortality Rate: 45/1000 | SDG 3 Goal: Reduce Child Mortality</p>
         <a href='/dashboard/' style='
             display:inline-block;
             margin-top:25px;
@@ -91,9 +98,9 @@ def index():
 @server.route('/api/predict', methods=['POST'])
 def api_predict():
     data = request.json
-    age = data.get("age", 1)
-    response = {"prediction": "High Risk" if age < 2 else "Low Risk"}
-    return jsonify(response)
+    # TODO: use actual model
+    prediction = trained_models.get("Under5", lambda x: "High Risk")(data)
+    return jsonify({"prediction": prediction})
 
 # ---------------------------
 # Dash app
@@ -129,17 +136,11 @@ app.layout = dbc.Container([
     # Target variable buttons
     dbc.Row([
         dbc.Col(html.Button("Under5", id='btn-under5', n_clicks=0,
-                            style={'backgroundColor': '#D7F4FA', 'borderRadius': '50px',
-                                   'padding': '20px 40px', 'fontWeight': 'bold', 'border': 'none',
-                                   'fontSize': '18px', 'cursor': 'pointer'}), width="auto"),
+                            className="btn btn-info mx-2"), width="auto"),
         dbc.Col(html.Button("Infant", id='btn-infant', n_clicks=0,
-                            style={'backgroundColor': '#D7F4FA', 'borderRadius': '50px',
-                                   'padding': '20px 40px', 'fontWeight': 'bold', 'border': 'none',
-                                   'fontSize': '18px', 'cursor': 'pointer'}), width="auto"),
+                            className="btn btn-info mx-2"), width="auto"),
         dbc.Col(html.Button("Neonatal", id='btn-neonatal', n_clicks=0,
-                            style={'backgroundColor': '#D7F4FA', 'borderRadius': '50px',
-                                   'padding': '20px 40px', 'fontWeight': 'bold', 'border': 'none',
-                                   'fontSize': '18px', 'cursor': 'pointer'}), width="auto")
+                            className="btn btn-info mx-2"), width="auto")
     ], justify="center", className="mb-4"),
 
     # Predictive feature dropdowns
@@ -163,9 +164,7 @@ app.layout = dbc.Container([
 
     # Predict button
     dbc.Row([dbc.Col(html.Button("Predict", id='predict-btn', n_clicks=0,
-                                 style={'backgroundColor': '#D7F4FA', 'borderRadius': '20px',
-                                        'padding': '15px 40px', 'fontWeight': 'bold', 'border': 'none',
-                                        'fontSize': '18px', 'cursor': 'pointer'}), width="auto")],
+                                 className="btn btn-success"), width="auto")],
             justify="center", className="mb-4"),
 
     # Prediction output
