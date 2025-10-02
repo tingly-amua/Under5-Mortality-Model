@@ -1,166 +1,201 @@
 import os
 import pickle
+import gdown
 import dash
 from dash import dcc, html
 from dash.dependencies import Input, Output, State
+import pandas as pd
+import plotly.express as px
 import plotly.graph_objects as go
-from flask import Flask, request, jsonify
+from flask import Flask, jsonify, request
+import dash_bootstrap_components as dbc
 
 # ---------------------------
-# Load trained models (all targets)
+# Google Drive file IDs
 # ---------------------------
-with open("all_models.pkl", "rb") as f:
-    models = pickle.load(f)
+FEATURES_FILE_ID = "1Wp4NOmMveYMql2h8GVfyx0J8pmNU7pkQ"
+MODEL_FILE_ID = "1sxZBckDWmumOd7Yilg4_0oudNlqLOWZu"
 
-# Example: models = {"Under-5": model1, "Infant": model2, "Neonatal": model3}
+FEATURES_PATH = "feature_importances.pkl"
+MODEL_PATH = "final_model.pkl"
+
+# ---------------------------
+# Download files if not present
+# ---------------------------
+for file_id, path in [(FEATURES_FILE_ID, FEATURES_PATH), (MODEL_FILE_ID, MODEL_PATH)]:
+    if not os.path.exists(path):
+        url = f"https://drive.google.com/uc?id={file_id}"
+        gdown.download(url, path, quiet=False)
+
+# ---------------------------
+# Load features & models
+# ---------------------------
+try:
+    with open(MODEL_PATH, "rb") as f:
+        trained_models = pickle.load(f)
+except Exception as e:
+    print("❌ Error loading models:", e)
+    trained_models = {}
+
+try:
+    feature_importances = pd.read_pickle(FEATURES_PATH)
+except Exception as e:
+    print("❌ Error loading feature importances:", e)
+    feature_importances = pd.DataFrame()
+
+# Example top 20 features per target
+top_features_under5 = [f"Feature_U{i}" for i in range(1, 21)]
+top_features_infant = [f"Feature_I{i}" for i in range(1, 21)]
+top_features_neonatal = [f"Feature_N{i}" for i in range(1, 21)]
 
 # ---------------------------
 # Flask server
 # ---------------------------
 server = Flask(__name__)
 
+# Landing page
 @server.route("/")
 def index():
-    return "Welcome to the Mortality Prediction API and Dashboard!"
-
-@server.route("/api/predict/<target>", methods=["POST"])
-def predict_api(target):
+    return """
+    <div style="
+        text-align:center; 
+        font-family:sans-serif; 
+        height: 100vh;
+        background-image: url('https://i.pinimg.com/1200x/97/a9/1c/97a91c944845237ef509452fec78863f.jpg');
+        background-size: cover;
+        background-position: center;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        color: white;
+        text-shadow: 1px 1px 5px rgba(0,0,0,0.7);
+    ">
+        <h1 style='font-size: 4em;'>👶 Afya-Toto</h1>
+        <p style='font-size: 1.5em;'>Under-5 Mortality Risk Prediction Tool - Kenya</p>
+        <a href='/dashboard/' style='
+            display:inline-block;
+            margin-top:25px;
+            padding:15px 30px;
+            background:#007BFF;
+            color:white;
+            border-radius:10px;
+            text-decoration:none;
+            font-weight:bold;
+            font-size: 18px;
+        '>Go to Dashboard</a>
+    </div>
     """
-    Flask API endpoint to get predictions.
-    Expects JSON payload with 'features': [..list of feature values..]
-    """
-    data = request.get_json()
-    if not data or "features" not in data:
-        return jsonify({"error": "Invalid request. 'features' key is required."}), 400
 
-    if target not in models:
-        return jsonify({"error": f"Target '{target}' not found. Use one of {list(models.keys())}"}), 400
-
-    model = models[target]
-    features = [data["features"]]
-    prediction = model.predict(features).tolist()
-
-    return jsonify({"target": target, "prediction": prediction})
+# Example API route for programmatic prediction
+@server.route('/api/predict', methods=['POST'])
+def api_predict():
+    data = request.json
+    age = data.get("age", 1)
+    response = {"prediction": "High Risk" if age < 2 else "Low Risk"}
+    return jsonify(response)
 
 # ---------------------------
-# Dash app for visualization
+# Dash app
 # ---------------------------
-app = dash.Dash(__name__, server=server, url_base_pathname="/dashboard/")
-
-app.layout = html.Div(
-    style={
-        "fontFamily": "Arial, sans-serif",
-        "maxWidth": "800px",
-        "margin": "auto",
-        "padding": "20px",
-        "backgroundColor": "#f9f9f9",
-        "borderRadius": "8px",
-        "boxShadow": "0 2px 4px rgba(0,0,0,0.1)",
-    },
-    children=[
-        html.H1("Mortality Prediction Dashboard", style={"textAlign": "center", "color": "#333"}),
-
-        html.P("Enter feature values (comma separated) and select target outcome:", 
-               style={"textAlign": "center", "color": "#666"}),
-
-        dcc.Input(
-            id="features-input",
-            placeholder="Enter features, e.g. 0.5,1.2,3.4",
-            style={"width": "100%", "padding": "10px", "fontSize": "16px"},
-        ),
-
-        dcc.Dropdown(
-            id="target-dropdown",
-            options=[{"label": k, "value": k} for k in models.keys()],
-            placeholder="Select a target (Under-5, Infant, Neonatal)",
-            style={"marginTop": "10px"},
-        ),
-
-        html.Button(
-            "Predict",
-            id="predict-button",
-            n_clicks=0,
-            style={
-                "display": "block",
-                "margin": "20px auto",
-                "padding": "10px 20px",
-                "fontSize": "16px",
-                "cursor": "pointer",
-                "backgroundColor": "#007BFF",
-                "color": "white",
-                "border": "none",
-                "borderRadius": "5px",
-            },
-        ),
-
-        dcc.Loading(
-            id="loading-spinner",
-            type="circle",
-            children=dcc.Graph(id="prediction-chart"),
-        ),
-    ],
+app = dash.Dash(
+    __name__,
+    server=server,
+    url_base_pathname="/dashboard/",
+    external_stylesheets=[dbc.themes.BOOTSTRAP],
+    suppress_callback_exceptions=True
 )
 
+# Sample region chart
+df_regions = pd.DataFrame({
+    "Region": ["Nairobi", "Coast", "Rift Valley", "Nyanza"],
+    "MortalityRate": [45, 60, 75, 90]
+})
+
 # ---------------------------
-# Callback to update chart
+# Dash layout
+# ---------------------------
+app.layout = dbc.Container([
+    dbc.Row([dbc.Col(html.H1("Afya-Toto Dashboard", className="text-center text-primary mb-4"), width=12)]),
+
+    # Mortality chart
+    dbc.Row([
+        dbc.Col(dcc.Graph(
+            id='mortality-chart',
+            figure=px.bar(df_regions, x="Region", y="MortalityRate", title="Under-5 Mortality by Region")
+        ), width=12)
+    ], className="mb-5"),
+
+    # Target variable buttons
+    dbc.Row([
+        dbc.Col(html.Button("Under5", id='btn-under5', n_clicks=0,
+                            style={'backgroundColor': '#D7F4FA', 'borderRadius': '50px',
+                                   'padding': '20px 40px', 'fontWeight': 'bold', 'border': 'none',
+                                   'fontSize': '18px', 'cursor': 'pointer'}), width="auto"),
+        dbc.Col(html.Button("Infant", id='btn-infant', n_clicks=0,
+                            style={'backgroundColor': '#D7F4FA', 'borderRadius': '50px',
+                                   'padding': '20px 40px', 'fontWeight': 'bold', 'border': 'none',
+                                   'fontSize': '18px', 'cursor': 'pointer'}), width="auto"),
+        dbc.Col(html.Button("Neonatal", id='btn-neonatal', n_clicks=0,
+                            style={'backgroundColor': '#D7F4FA', 'borderRadius': '50px',
+                                   'padding': '20px 40px', 'fontWeight': 'bold', 'border': 'none',
+                                   'fontSize': '18px', 'cursor': 'pointer'}), width="auto")
+    ], justify="center", className="mb-4"),
+
+    # Predictive feature dropdowns
+    dbc.Row([
+        dbc.Col(dcc.Dropdown(
+            id='dropdown-under5',
+            options=[{'label': f, 'value': f} for f in top_features_under5],
+            placeholder="Predictive features for Under5", multi=True
+        ), width=3),
+        dbc.Col(dcc.Dropdown(
+            id='dropdown-infant',
+            options=[{'label': f, 'value': f} for f in top_features_infant],
+            placeholder="Predictive features for Infant", multi=True
+        ), width=3),
+        dbc.Col(dcc.Dropdown(
+            id='dropdown-neonatal',
+            options=[{'label': f, 'value': f} for f in top_features_neonatal],
+            placeholder="Predictive features for Neonatal", multi=True
+        ), width=3)
+    ], justify="center", className="mb-4"),
+
+    # Predict button
+    dbc.Row([dbc.Col(html.Button("Predict", id='predict-btn', n_clicks=0,
+                                 style={'backgroundColor': '#D7F4FA', 'borderRadius': '20px',
+                                        'padding': '15px 40px', 'fontWeight': 'bold', 'border': 'none',
+                                        'fontSize': '18px', 'cursor': 'pointer'}), width="auto")],
+            justify="center", className="mb-4"),
+
+    # Prediction output
+    dbc.Row([dbc.Col(html.Div(id='prediction-output', className="text-center"), width=12)])
+], fluid=True)
+
+# ---------------------------
+# Callback for prediction
 # ---------------------------
 @app.callback(
-    Output("prediction-chart", "figure"),
-    [Input("predict-button", "n_clicks")],
-    [State("features-input", "value"), State("target-dropdown", "value")],
+    Output('prediction-output', 'children'),
+    Input('predict-btn', 'n_clicks'),
+    State('dropdown-under5', 'value'),
+    State('dropdown-infant', 'value'),
+    State('dropdown-neonatal', 'value')
 )
-def update_chart(n_clicks, features_value, target_value):
-    if n_clicks == 0 or not features_value or not target_value:
-        return go.Figure().update_layout(
-            title_text='Enter features + select target, then click "Predict"',
-            xaxis={"visible": False},
-            yaxis={"visible": False},
-            annotations=[{
-                "text": "Waiting for input...",
-                "xref": "paper",
-                "yref": "paper",
-                "showarrow": False,
-                "font": {"size": 16, "color": "#888"},
-            }],
-        )
-
-    try:
-        features = [float(x.strip()) for x in features_value.split(",")]
-        model = models[target_value]
-        pred = model.predict([features]).tolist()[0]
-    except Exception as e:
-        return go.Figure().update_layout(
-            title_text="Error",
-            annotations=[{
-                "text": str(e),
-                "xref": "paper",
-                "yref": "paper",
-                "showarrow": False,
-                "font": {"size": 14, "color": "red"},
-            }],
-        )
-
-    fig = go.Figure(data=[go.Bar(
-        x=[target_value],
-        y=[pred],
-        marker_color="steelblue",
-        text=[str(pred)],
-        textposition="auto"
-    )])
-
-    fig.update_layout(
-        title_text=f"Prediction for {target_value}",
-        xaxis_title="Target",
-        yaxis_title="Predicted Value",
-        plot_bgcolor="white",
-        paper_bgcolor="#f9f9f9",
-        font={"color": "#333"},
-    )
-    return fig
+def make_prediction(n_clicks, under5_features, infant_features, neonatal_features):
+    if n_clicks < 1:
+        return "ℹ️ Select features and click Predict."
+    selected_features = {
+        'Under5': under5_features,
+        'Infant': infant_features,
+        'Neonatal': neonatal_features
+    }
+    # TODO: insert actual prediction logic using trained_models
+    return f"✅ Selected features for prediction: {selected_features}"
 
 # ---------------------------
-# Run
+# Run server
 # ---------------------------
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8050))
-    server.run(debug=False, port=port, host="0.0.0.0")
+    server.run(debug=True, port=port)
