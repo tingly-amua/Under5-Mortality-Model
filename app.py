@@ -30,11 +30,13 @@ for file_id, path in [(FEATURES_FILE_ID, FEATURES_PATH), (MODEL_FILE_ID, MODEL_P
 # ---------------------------
 try:
     with open(FEATURES_PATH, "rb") as f:
-        feature_importances = pickle.load(f)
+        feature_df = pickle.load(f)
     print("✅ Feature importances loaded.")
+    # Extract unique features
+    features_list = feature_df["Feature"].unique().tolist()
 except Exception as e:
     print("❌ Error loading feature importances:", e)
-    feature_importances = []
+    features_list = []
 
 try:
     with open(MODEL_PATH, "rb") as f:
@@ -85,8 +87,8 @@ def index():
 # Dash app for dashboard
 # ---------------------------
 app = dash.Dash(
-    __name__, 
-    server=server, 
+    __name__,
+    server=server,
     url_base_pathname="/dashboard/",
     suppress_callback_exceptions=True
 )
@@ -106,11 +108,11 @@ app.layout = html.Div(
             children=[
                 html.H2("👶 Afya-Toto Inputs", style={"textAlign": "center", "color": "#007BFF"}),
 
-                html.P("Select feature:", style={"fontWeight": "bold"}),
+                html.P("Select feature(s):", style={"fontWeight": "bold"}),
                 dcc.Dropdown(
                     id="feature-dropdown",
-                    options=[{"label": f, "value": f} for f in feature_importances],
-                    placeholder="Select a feature",
+                    options=[{"label": f, "value": f} for f in features_list],
+                    placeholder="Select feature(s)",
                     multi=True,
                     style={"marginBottom": "20px"},
                 ),
@@ -118,9 +120,11 @@ app.layout = html.Div(
                 html.P("Select target:", style={"fontWeight": "bold"}),
                 dcc.Dropdown(
                     id="target-dropdown",
-                    options=[{"label": "Under-5", "value": "under5"},
-                             {"label": "Infant", "value": "infant"},
-                             {"label": "Neonatal", "value": "neonatal"}],
+                    options=[
+                        {"label": "Under-5", "value": "Under5"},
+                        {"label": "Infant", "value": "Infant"},
+                        {"label": "Neonatal", "value": "Neonatal"}
+                    ],
                     placeholder="Select target variable",
                     style={"marginBottom": "20px"},
                 ),
@@ -179,7 +183,8 @@ def update_chart(n_clicks, features_selected, target_value):
         )
 
     try:
-        # Here we assume features_selected is already ordered correctly for the model
+        # TODO: Map selected feature names to actual numeric values before prediction
+        # For now, assume features_selected is numeric and ordered correctly
         pred = model.predict([features_selected]).tolist()[0]
     except Exception as e:
         return go.Figure().update_layout(
