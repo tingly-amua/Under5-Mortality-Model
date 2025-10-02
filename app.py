@@ -11,19 +11,19 @@ import dash_bootstrap_components as dbc
 # ---------------------------
 # Google Drive file IDs
 # ---------------------------
-FEATURES_FILE_ID = "1Wp4NOmMveYMql2h8GVfyx0J8pmNU7pkQ"
+FEATURES_FILE_ID = "13G-wF49ooTnQ3tfTvoCh9thy-DmBJj99"  # updated
 MODEL_FILE_ID = "1sxZBckDWmumOd7Yilg4_0oudNlqLOWZu"
 
 FEATURES_PATH = "feature_importances.pkl"
 MODEL_PATH = "final_model.pkl"
 
 # ---------------------------
-# Download files if not present
+# Download files if not present (Heroku-safe)
 # ---------------------------
 for file_id, path in [(FEATURES_FILE_ID, FEATURES_PATH), (MODEL_FILE_ID, MODEL_PATH)]:
     if not os.path.exists(path):
-        url = f"https://drive.google.com/uc?id={file_id}"
-        gdown.download(url, path, quiet=False)
+        print(f"⬇️ Downloading {path} from Google Drive...")
+        gdown.download_file_from_google_drive(file_id=file_id, dest_path=path, quiet=False)
 
 # ---------------------------
 # Load features & models safely
