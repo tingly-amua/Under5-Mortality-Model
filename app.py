@@ -11,7 +11,7 @@ import dash_bootstrap_components as dbc
 # ---------------------------
 # Google Drive file IDs
 # ---------------------------
-FEATURES_FILE_ID = "13G-wF49ooTnQ3tfTvoCh9thy-DmBJj99"  # updated
+FEATURES_FILE_ID = "13G-wF49ooTnQ3tfTvoCh9thy-DmBJj99"  # updated feature_importances.pkl
 MODEL_FILE_ID = "1sxZBckDWmumOd7Yilg4_0oudNlqLOWZu"
 
 FEATURES_PATH = "feature_importances.pkl"
@@ -22,8 +22,12 @@ MODEL_PATH = "final_model.pkl"
 # ---------------------------
 for file_id, path in [(FEATURES_FILE_ID, FEATURES_PATH), (MODEL_FILE_ID, MODEL_PATH)]:
     if not os.path.exists(path):
-        print(f"⬇️ Downloading {path} from Google Drive...")
-        gdown.download_file_from_google_drive(file_id=file_id, dest_path=path, quiet=False)
+        url = f"https://drive.google.com/uc?id={file_id}"
+        print(f"⬇️ Downloading {path} from {url} ...")
+        try:
+            gdown.download(url, path, quiet=False)
+        except Exception as e:
+            print(f"❌ Failed to download {path}: {e}")
 
 # ---------------------------
 # Load features & models safely
@@ -47,22 +51,21 @@ except Exception as e:
 # Extract top features dynamically
 # ---------------------------
 def get_top_features(target, top_n=20):
-    """Return top N features for a given target from the feature importance DataFrame."""
     if feature_importances.empty:
         print("⚠️ Feature importance DataFrame is empty")
         return []
-    
+
     required_cols = ['Target', 'Feature', 'Importance']
     for col in required_cols:
         if col not in feature_importances.columns:
             print(f"⚠️ Column '{col}' missing in feature_importances")
             return []
-    
+
     filtered = feature_importances[feature_importances['Target'] == target]
     if filtered.empty:
         print(f"⚠️ No features found for target: {target}")
         return []
-    
+
     return filtered.nlargest(top_n, 'Importance')['Feature'].tolist()
 
 top_features_under5 = get_top_features('Under5')
@@ -74,7 +77,6 @@ top_features_neonatal = get_top_features('Neonatal')
 # ---------------------------
 server = Flask(__name__)
 
-# Landing page
 @server.route("/")
 def index():
     return """
@@ -110,11 +112,9 @@ def index():
     </div>
     """
 
-# API route for programmatic prediction
 @server.route('/api/predict', methods=['POST'])
 def api_predict():
     data = request.json
-    # Fallback prediction if model missing
     prediction = trained_models.get("Under5", lambda x: "High Risk")(data)
     return jsonify({"prediction": prediction})
 
@@ -129,9 +129,6 @@ app = dash.Dash(
     suppress_callback_exceptions=True
 )
 
-# ---------------------------
-# Dash layout
-# ---------------------------
 app.layout = dbc.Container([
     dbc.Row([dbc.Col(html.H1("Afya-Toto Dashboard", className="text-center text-primary mb-4"), width=12)]),
 
@@ -165,9 +162,6 @@ app.layout = dbc.Container([
     dbc.Row([dbc.Col(html.Div(id='prediction-output', className="text-center"), width=12)])
 ], fluid=True)
 
-# ---------------------------
-# Callback for prediction
-# ---------------------------
 @app.callback(
     Output('prediction-output', 'children'),
     Input('predict-btn', 'n_clicks'),
@@ -183,7 +177,6 @@ def make_prediction(n_clicks, under5_features, infant_features, neonatal_feature
         'Infant': infant_features or [],
         'Neonatal': neonatal_features or []
     }
-    # TODO: insert actual prediction logic using trained_models
     return f"✅ Selected features for prediction: {selected_features}"
 
 # ---------------------------
