@@ -14,7 +14,6 @@
 *.csv
 
 # Allow specific cleaned CSV(s) to be tracked (override above rule)
-# NOTE: For Heroku deployment, you might still want to comment these out if using runtime download
 # !u5mr_subset.csv
 # !u5mr_clean.csv
 
@@ -32,6 +31,10 @@ __pycache__/
 *.pyd
 *.pkl
 *.pklz
+
+# Allow model pickle(s) needed for deployment
+!final_model.pkl
+!feature_importances.pkl
 
 # Virtual environment directories
 .env/
