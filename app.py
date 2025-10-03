@@ -4,7 +4,7 @@ import dash
 from dash import dcc, html
 from dash.dependencies import Input, Output, State
 import pandas as pd
-from flask import Flask, jsonify, request
+from flask import Flask
 import dash_bootstrap_components as dbc
 
 # ---------------------------
@@ -41,7 +41,8 @@ except Exception as e:
 # Helper to get top features per target
 # ---------------------------
 def get_top_features(target, top_n=20):
-    df_target = feature_importances[feature_importances["Target"].str.lower() == target.lower()]
+    # Match the exact target name in the DataFrame
+    df_target = feature_importances[feature_importances["Target"] == target]
     if df_target.empty:
         return []
     return df_target.nlargest(top_n, "Importance")["Feature"].tolist()
@@ -80,18 +81,17 @@ app = dash.Dash(
     suppress_callback_exceptions=True
 )
 
+# Update to match exact target names from DataFrame
+TARGETS = ["Under5", "Infant", "Neonatal"]
+
 app.layout = dbc.Container([
     dbc.Row([dbc.Col(html.H1("Afya-Toto Dashboard", className="text-center"), width=12)]),
-
-    dbc.Row([
-        dbc.Col(make_dropdown("Under-5"), width=3),
-        dbc.Col(make_dropdown("Infant"), width=3),
-        dbc.Col(make_dropdown("Neonatal"), width=3),
-    ], justify="center", className="mb-4"),
-
+    
+    dbc.Row([dbc.Col(make_dropdown(t), width=3) for t in TARGETS], justify="center", className="mb-4"),
+    
     dbc.Row([dbc.Col(html.Button("Predict", id="predict-btn", n_clicks=0, className="btn btn-success"), width="auto")],
             justify="center", className="mb-4"),
-
+    
     dbc.Row([dbc.Col(html.Div(id="prediction-output", className="text-center"), width=12)])
 ], fluid=True)
 
@@ -101,25 +101,22 @@ app.layout = dbc.Container([
 @app.callback(
     Output("prediction-output", "children"),
     Input("predict-btn", "n_clicks"),
-    State("dropdown-under-5", "value"),
-    State("dropdown-infant", "value"),
-    State("dropdown-neonatal", "value")
+    [State(f"dropdown-{t.lower()}", "value") for t in TARGETS]
 )
-def make_prediction(n_clicks, u5_features, inf_features, neo_features):
+def make_prediction(n_clicks, *features_selected):
     if n_clicks < 1:
         return "ℹ️ Select features first."
 
-    import pandas as pd
-    sel = {"Under-5": u5_features or [], "Infant": inf_features or [], "Neonatal": neo_features or []}
-
+    sel = dict(zip(TARGETS, features_selected))
     predictions = {}
+
     for target, features in sel.items():
         if not features:
             predictions[target] = "⚠️ No features selected"
             continue
 
-        # Build dummy input with zeros (replace with actual user input in production)
-        X_new = pd.DataFrame([{f: 0 for f in features}])
+        import pandas as pd
+        X_new = pd.DataFrame([{f: 0 for f in features}])  # Replace 0s with actual input in prod
         model = trained_models.get(target)
         if model is None:
             predictions[target] = "⚠️ Model not loaded"
