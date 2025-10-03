@@ -93,6 +93,19 @@ This suggests that the relationship between the features and mortality is comple
 
 3.  **Future Focus:** The **Stacking Ensemble** model will be selected for subsequent steps, including detailed **Feature Importance analysis** and deployment, given its consistent and superior performance across all critical metrics.
 
+**Data Availability Disclaimer**
+
+This project uses data from the Kenya Demographic and Health Survey (DHS) 2022, obtained through the DHS Program
+
+**Important:**
+
+The DHS datasets are not publicly redistributable.
+
+To access the raw data, you must register and submit a request directly through the [DHS Program Data Portal](https://dhsprogram.com/data/)
+- Approval is granted by the DHS Program, and data use is subject to their terms and conditions.
+- This repository therefore does not include any DHS raw data files (such as .SAS7BDAT, .dta, .sav, .csv, or .map).
+- Only analysis scripts, documentation, and selected aggregated or derived outputs are provided here.
+
 **Contributors**:
 1. Kevin Karanja - kevin.karanja@student.moringaschool.com
 2. Keith Tongi - keith.tongi@student.moringaschool.co!
