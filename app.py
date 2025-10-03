@@ -1,6 +1,5 @@
 import os
 import pickle
-import gdown
 import dash
 from dash import dcc, html
 from dash.dependencies import Input, Output, State
@@ -9,132 +8,119 @@ from flask import Flask, jsonify, request
 import dash_bootstrap_components as dbc
 
 # ---------------------------
-# Google Drive file IDs
+# Local paths for model & features
 # ---------------------------
-FEATURES_FILE_ID = "13G-wF49ooTnQ3tfTvoCh9thy-DmBJj99"  # updated feature_importances.pkl
-MODEL_FILE_ID = "1sxZBckDWmumOd7Yilg4_0oudNlqLOWZu"
-
-FEATURES_PATH = "feature_importances.pkl"
 MODEL_PATH = "final_model.pkl"
+FEATURES_PATH = "feature_importances.pkl"
+
+def load_pickle(filename):
+    """Safe pickle loader with debug info"""
+    with open(filename, "rb") as f:
+        return pickle.load(f)
 
 # ---------------------------
-# Download files if not present (Heroku-safe)
-# ---------------------------
-for file_id, path in [(FEATURES_FILE_ID, FEATURES_PATH), (MODEL_FILE_ID, MODEL_PATH)]:
-    if not os.path.exists(path):
-        url = f"https://drive.google.com/uc?id={file_id}"
-        print(f"⬇️ Downloading {path} from {url} ...")
-        try:
-            gdown.download(url, path, quiet=False)
-        except Exception as e:
-            print(f"❌ Failed to download {path}: {e}")
-
-# ---------------------------
-# Load features & models safely
+# Load Model and Features locally
 # ---------------------------
 try:
-    with open(MODEL_PATH, "rb") as f:
-        trained_models = pickle.load(f)
+    trained_models = load_pickle(MODEL_PATH)
+    print("✅ Model loaded successfully")
 except Exception as e:
-    print("❌ Error loading models:", e)
+    print(f"❌ Error loading model: {e}")
     trained_models = {}
 
 try:
     feature_importances = pd.read_pickle(FEATURES_PATH)
+
     if not isinstance(feature_importances, pd.DataFrame):
-        raise ValueError("Pickled file is not a valid DataFrame")
+        raise ValueError("feature_importances.pkl is not a DataFrame")
+
+    print("✅ Features loaded successfully")
+    print("Targets available:", feature_importances["Target"].unique().tolist())
 except Exception as e:
-    print("❌ Error loading feature importances:", e)
-    feature_importances = pd.DataFrame(columns=['Target', 'Feature', 'Importance'])
+    print(f"❌ Error loading features: {e}")
+    feature_importances = pd.DataFrame(columns=["Target", "Feature", "Importance"])
 
 # ---------------------------
 # Extract top features dynamically
 # ---------------------------
-# ---------------------------
-# Extract top features dynamically (robust version)
-# ---------------------------
 def get_top_features(target, top_n=20):
     if feature_importances.empty:
-        print("⚠️ Feature importance DataFrame is empty")
         return []
-
-    # Ensure required columns exist
-    required_cols = ['Target', 'Feature', 'Importance']
-    for col in required_cols:
-        if col not in feature_importances.columns:
-            print(f"⚠️ Column '{col}' missing in feature_importances")
-            return []
-
-    # Case-insensitive filtering
     filtered = feature_importances[
-        feature_importances['Target'].str.lower() == target.lower()
+        feature_importances["Target"].str.lower() == target.lower()
     ]
-
     if filtered.empty:
-        print(f"⚠️ No features found for target: '{target}'. Available targets: {feature_importances['Target'].unique()}")
         return []
+    return filtered.nlargest(top_n, "Importance")["Feature"].tolist()
 
-    top_features = filtered.nlargest(top_n, 'Importance')['Feature'].tolist()
-    print(f"✅ Top {len(top_features)} features for target '{target}': {top_features[:5]} ...")  # log first 5 for brevity
-    return top_features
-
-# ---------------------------
-# Load top features
-# ---------------------------
-top_features_under5 = get_top_features('Under5')
-top_features_infant = get_top_features('Infant')
-top_features_neonatal = get_top_features('Neonatal')
-
+def make_dropdown(target):
+    return dcc.Dropdown(
+        id=f"dropdown-{target.lower()}",
+        options=[{"label": f, "value": f} for f in get_top_features(target)],
+        placeholder=f"Select features for {target}",
+        multi=True
+    )
 
 # ---------------------------
-# Flask server
+# Flask server and routes
 # ---------------------------
 server = Flask(__name__)
 
 @server.route("/")
 def index():
-    return f"""
+    return """
     <div style="
-        text-align:center; 
-        font-family:sans-serif; 
+        text-align:center;
+        font-family:sans-serif;
         min-height: 100vh;
         display: flex;
         flex-direction: column;
         justify-content: center;
         align-items: center;
-        background: url('/static/background.jpg') no-repeat center center fixed;
-        background-size: cover;
         color: #004080;
     ">
-        <h1 style='font-size: 4em; background:rgba(255,255,255,0.7); padding:10px; border-radius:10px;'>👶 Afya Toto</h1>
-        <p style='font-size: 1.5em; max-width:800px; background:rgba(255,255,255,0.7); padding:10px; border-radius:10px;'>
-        Protecting Children’s Health Through Data Insights
-        </p>
-        <p style='max-width:800px; background:rgba(255,255,255,0.7); padding:10px; border-radius:10px;'>
-        Under-5 Mortality Rate: 45/1000 | SDG 3 Goal: Reduce Child Mortality
-        </p>
-        <a href='/dashboard/' style='
-            display:inline-block;
-            margin-top:25px;
-            padding:15px 30px;
-            background:#007BFF;
-            color:white;
-            border-radius:10px;
-            text-decoration:none;
-            font-weight:bold;
-            font-size: 18px;
-        '>Go to Dashboard</a>
+        <h1>👶 Afya Toto</h1>
+        <p>Protecting Children’s Health Through Data Insights</p>
+        <a href='/dashboard/'>Go to Dashboard</a>
     </div>
     """
 
-# ---------------------------
-# API endpoint
-# ---------------------------
-@server.route('/api/predict', methods=['POST'])
+@server.route("/api/features", methods=["GET"])
+def api_features():
+    if feature_importances.empty:
+        return jsonify({"error": "❌ feature_importances is empty"})
+    result = {}
+    for t in feature_importances["Target"].unique():
+        feats = (
+            feature_importances[feature_importances["Target"] == t]
+            .nlargest(20, "Importance")["Feature"]
+            .tolist()
+        )
+        result[t] = feats
+    return jsonify(result)
+
+@server.route("/api/predict", methods=["POST"])
 def api_predict():
     data = request.json
-    prediction = trained_models.get("Under5", lambda x: "High Risk")(data)
+    # fallback: simple response if trained_models not callable
+    if callable(trained_models.get("Under5", None)):
+        prediction = trained_models["Under5"](data)
+    else:
+        prediction = "⚠️ Model not loaded or invalid"
     return jsonify({"prediction": prediction})
+
+@server.route("/api/debug", methods=["GET"])
+def api_debug():
+    """Return debug info for models and features"""
+    debug_info = {
+        "model_loaded": bool(trained_models),
+        "features_loaded": not feature_importances.empty,
+        "feature_importances_shape": feature_importances.shape if not feature_importances.empty else (0, 0),
+        "feature_importances_columns": feature_importances.columns.tolist(),
+        "available_targets": feature_importances["Target"].unique().tolist() if not feature_importances.empty else [],
+        "sample_rows": feature_importances.head(5).to_dict(orient="records") if not feature_importances.empty else []
+    }
+    return jsonify(debug_info)
 
 # ---------------------------
 # Dash app
@@ -148,59 +134,36 @@ app = dash.Dash(
 )
 
 app.layout = dbc.Container([
-    dbc.Row([dbc.Col(html.H1("Afya-Toto Dashboard", className="text-center text-primary mb-4"), width=12)]),
+    dbc.Row([dbc.Col(html.H1("Afya-Toto Dashboard", className="text-center"), width=12)]),
 
     dbc.Row([
-        dbc.Col(html.Button("Under5", id='btn-under5', n_clicks=0, className="btn btn-info mx-2"), width="auto"),
-        dbc.Col(html.Button("Infant", id='btn-infant', n_clicks=0, className="btn btn-info mx-2"), width="auto"),
-        dbc.Col(html.Button("Neonatal", id='btn-neonatal', n_clicks=0, className="btn btn-info mx-2"), width="auto")
+        dbc.Col(make_dropdown("Under5"), width=3),
+        dbc.Col(make_dropdown("Infant"), width=3),
+        dbc.Col(make_dropdown("Neonatal"), width=3),
     ], justify="center", className="mb-4"),
 
-    dbc.Row([
-        dbc.Col(dcc.Dropdown(
-            id='dropdown-under5',
-            options=[{'label': f, 'value': f} for f in top_features_under5],
-            placeholder="Predictive features for Under5", multi=True
-        ), width=3),
-        dbc.Col(dcc.Dropdown(
-            id='dropdown-infant',
-            options=[{'label': f, 'value': f} for f in top_features_infant],
-            placeholder="Predictive features for Infant", multi=True
-        ), width=3),
-        dbc.Col(dcc.Dropdown(
-            id='dropdown-neonatal',
-            options=[{'label': f, 'value': f} for f in top_features_neonatal],
-            placeholder="Predictive features for Neonatal", multi=True
-        ), width=3)
-    ], justify="center", className="mb-4"),
-
-    dbc.Row([dbc.Col(html.Button("Predict", id='predict-btn', n_clicks=0, className="btn btn-success"), width="auto")],
+    dbc.Row([dbc.Col(html.Button("Predict", id="predict-btn", n_clicks=0, className="btn btn-success"), width="auto")],
             justify="center", className="mb-4"),
 
-    dbc.Row([dbc.Col(html.Div(id='prediction-output', className="text-center"), width=12)])
+    dbc.Row([dbc.Col(html.Div(id="prediction-output", className="text-center"), width=12)])
 ], fluid=True)
 
 @app.callback(
-    Output('prediction-output', 'children'),
-    Input('predict-btn', 'n_clicks'),
-    State('dropdown-under5', 'value'),
-    State('dropdown-infant', 'value'),
-    State('dropdown-neonatal', 'value')
+    Output("prediction-output", "children"),
+    Input("predict-btn", "n_clicks"),
+    State("dropdown-under5", "value"),
+    State("dropdown-infant", "value"),
+    State("dropdown-neonatal", "value")
 )
-def make_prediction(n_clicks, under5_features, infant_features, neonatal_features):
+def make_prediction(n_clicks, u5, inf, neo):
     if n_clicks < 1:
-        return "ℹ️ Select features and click Predict."
-    selected_features = {
-        'Under5': under5_features or [],
-        'Infant': infant_features or [],
-        'Neonatal': neonatal_features or []
-    }
-    return f"✅ Selected features for prediction: {selected_features}"
+        return "ℹ️ Select features first."
+    sel = {"Under5": u5 or [], "Infant": inf or [], "Neonatal": neo or []}
+    return f"✅ Selected features: {sel}"
 
 # ---------------------------
 # Run server
 # ---------------------------
 if __name__ == "__main__":
-    os.makedirs("static", exist_ok=True)
     port = int(os.environ.get("PORT", 8050))
     server.run(debug=True, port=port)
