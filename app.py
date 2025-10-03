@@ -13,41 +13,49 @@ import dash_bootstrap_components as dbc
 MODEL_PATH = "final_model.pkl"
 FEATURES_PATH = "feature_importances.pkl"
 
+# ---------------------------
+# Load pickled objects
+# ---------------------------
 def load_pickle(filename):
-    with open(filename, "rb") as f:
-        return pickle.load(f)
-    
-# ---------------------------
-# Load Model and Features locally
-# ---------------------------
-try:
-    trained_models = load_pickle(MODEL_PATH)
+    if os.path.exists(filename):
+        with open(filename, "rb") as f:
+            return pickle.load(f)
+    else:
+        print(f"❌ File not found: {filename}")
+        return None
+
+# Load final model
+trained_models = load_pickle(MODEL_PATH)
+model_loaded = trained_models is not None
+if model_loaded:
     print("✅ Model loaded successfully")
-except Exception as e:
-    print(f"❌ Error loading model: {e}")
-    trained_models = {}
 
-try:
-    feature_importances = pd.read_pickle(FEATURES_PATH)
+# Load feature importances
+feature_importances = load_pickle(FEATURES_PATH)
+features_loaded = False
+available_targets = []
+sample_rows = []
+feature_importances_shape = [0, 0]
+feature_importances_columns = ["Target", "Feature", "Importance"]
 
-    if not isinstance(feature_importances, pd.DataFrame):
-        raise ValueError("feature_importances.pkl is not a DataFrame")
-
+if isinstance(feature_importances, pd.DataFrame):
+    feature_importances_shape = list(feature_importances.shape)
+    available_targets = feature_importances["Target"].unique().tolist() if "Target" in feature_importances.columns else []
+    sample_rows = feature_importances.head().to_dict(orient="records")
+    features_loaded = True
     print("✅ Features loaded successfully")
-    print("Targets available:", feature_importances["Target"].unique().tolist())
-except Exception as e:
-    print(f"❌ Error loading features: {e}")
-    feature_importances = pd.DataFrame(columns=["Target", "Feature", "Importance"])
+    print("Available targets:", available_targets)
+else:
+    print("❌ feature_importances.pkl is not a DataFrame")
+    feature_importances = pd.DataFrame(columns=feature_importances_columns)
 
 # ---------------------------
 # Extract top features dynamically
 # ---------------------------
 def get_top_features(target, top_n=20):
-    if feature_importances.empty:
+    if feature_importances.empty or target not in feature_importances["Target"].values:
         return []
-    filtered = feature_importances[
-        feature_importances["Target"].str.lower() == target.lower()
-    ]
+    filtered = feature_importances[feature_importances["Target"].str.lower() == target.lower()]
     if filtered.empty:
         return []
     return filtered.nlargest(top_n, "Importance")["Feature"].tolist()
@@ -112,12 +120,12 @@ def api_predict():
 def api_debug():
     """Return debug info for models and features"""
     debug_info = {
-        "model_loaded": bool(trained_models),
-        "features_loaded": not feature_importances.empty,
-        "feature_importances_shape": feature_importances.shape if not feature_importances.empty else (0, 0),
-        "feature_importances_columns": feature_importances.columns.tolist(),
-        "available_targets": feature_importances["Target"].unique().tolist() if not feature_importances.empty else [],
-        "sample_rows": feature_importances.head(5).to_dict(orient="records") if not feature_importances.empty else []
+        "model_loaded": model_loaded,
+        "features_loaded": features_loaded,
+        "feature_importances_shape": feature_importances_shape,
+        "feature_importances_columns": feature_importances_columns,
+        "available_targets": available_targets,
+        "sample_rows": sample_rows
     }
     return jsonify(debug_info)
 
@@ -133,7 +141,7 @@ app = dash.Dash(
 )
 
 # Update to match exact target names from DataFrame
-TARGETS = ["Under5", "Infant", "Neonatal"]
+TARGETS = available_targets or ["Under5", "Infant", "Neonatal"]
 
 app.layout = dbc.Container([
     dbc.Row([dbc.Col(html.H1("Afya-Toto Dashboard", className="text-center"), width=12)]),
@@ -145,6 +153,7 @@ app.layout = dbc.Container([
     
     dbc.Row([dbc.Col(html.Div(id="prediction-output", className="text-center"), width=12)])
 ], fluid=True)
+
 # ---------------------------
 # Callback to populate dropdowns dynamically
 # ---------------------------
@@ -152,7 +161,7 @@ app.layout = dbc.Container([
     Output("dropdown-under5", "options"),
     Output("dropdown-infant", "options"),
     Output("dropdown-neonatal", "options"),
-    Input("predict-btn", "n_clicks")  # can also use a dummy Input like dcc.Interval or simply 0
+    Input("predict-btn", "n_clicks")
 )
 def populate_dropdowns(_):
     under5_opts = [{"label": f, "value": f} for f in get_top_features("Under5")]
@@ -182,17 +191,16 @@ def make_prediction(n_clicks, u5_features, inf_features, neo_features):
             predictions[target] = "⚠️ No features selected"
             continue
 
-        import pandas as pd
         X_new = pd.DataFrame([{f: 0 for f in features}])  # Replace with actual user input in production
-        model = trained_models.get(target)
+        model = trained_models.get(target) if trained_models else None
         if model is None:
             predictions[target] = "⚠️ Model not loaded"
             continue
 
         try:
             pred = model.predict(X_new)[0]
-            prob = model.predict_proba(X_new)[0, 1]
-            predictions[target] = f"Prediction: {pred}, Probability: {prob:.3f}"
+            prob = model.predict_proba(X_new)[0, 1] if hasattr(model, "predict_proba") else None
+            predictions[target] = f"Prediction: {pred}" + (f", Probability: {prob:.3f}" if prob is not None else "")
         except Exception as e:
             predictions[target] = f"⚠️ Error predicting: {e}"
 
