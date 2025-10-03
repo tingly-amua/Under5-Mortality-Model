@@ -9,10 +9,10 @@ from flask import Flask, jsonify, request
 import dash_bootstrap_components as dbc
 
 # ---------------------------
-# Google Drive file IDs
+# Google Drive file IDs (UPDATED)
 # ---------------------------
-FEATURES_FILE_ID = "13G-wF49ooTnQ3tfTvoCh9thy-DmBJj99"  # updated feature_importances.pkl
-MODEL_FILE_ID = "1sxZBckDWmumOd7Yilg4_0oudNlqLOWZu"
+FEATURES_FILE_ID = "1LITbeocbOLTcZBmf0KeBTLcch_03oRi7"   # feature_importances.pkl
+MODEL_FILE_ID = "19H7NxVfaAK0Ml23X9jfTewVvZjcuJVhq"     # final_model.pkl
 
 FEATURES_PATH = "feature_importances.pkl"
 MODEL_PATH = "final_model.pkl"
@@ -35,6 +35,7 @@ for file_id, path in [(FEATURES_FILE_ID, FEATURES_PATH), (MODEL_FILE_ID, MODEL_P
 try:
     with open(MODEL_PATH, "rb") as f:
         trained_models = pickle.load(f)
+    print("✅ Model loaded successfully")
 except Exception as e:
     print("❌ Error loading models:", e)
     trained_models = {}
@@ -43,26 +44,27 @@ try:
     feature_importances = pd.read_pickle(FEATURES_PATH)
     if not isinstance(feature_importances, pd.DataFrame):
         raise ValueError("Pickled file is not a valid DataFrame")
+    print(f"✅ Features loaded successfully. Available targets: {feature_importances['Target'].unique().tolist()}")
+    # Debug: show first few rows
+    print("🔍 Feature_importances sample:\n", feature_importances.head())
 except Exception as e:
     print("❌ Error loading feature importances:", e)
     feature_importances = pd.DataFrame(columns=['Target', 'Feature', 'Importance'])
 
 # ---------------------------
-# Extract top features dynamically (robust version)
+# Extract top features dynamically
 # ---------------------------
 def get_top_features(target, top_n=20):
     if feature_importances.empty:
         print("⚠️ Feature importance DataFrame is empty")
         return []
 
-    # Ensure required columns exist
     required_cols = ['Target', 'Feature', 'Importance']
     for col in required_cols:
         if col not in feature_importances.columns:
             print(f"⚠️ Column '{col}' missing in feature_importances")
             return []
 
-    # Case-insensitive filtering
     filtered = feature_importances[
         feature_importances['Target'].str.lower() == target.lower()
     ]
@@ -72,7 +74,7 @@ def get_top_features(target, top_n=20):
         return []
 
     top_features = filtered.nlargest(top_n, 'Importance')['Feature'].tolist()
-    print(f"✅ Top {len(top_features)} features for target '{target}': {top_features[:5]} ...")  # log first 5
+    print(f"✅ Top {len(top_features)} features for target '{target}': {top_features[:5]} ...")
     return top_features
 
 # ---------------------------
@@ -93,7 +95,7 @@ server = Flask(__name__)
 
 @server.route("/")
 def index():
-    return f"""
+    return """
     <div style="
         text-align:center; 
         font-family:sans-serif; 
