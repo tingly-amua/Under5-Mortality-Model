@@ -19,7 +19,7 @@ FEATURES_PATH = "feature_importances.pkl"
 
 def download_file(file_id, output):
     """Download file from Google Drive by ID"""
-    url = f"https://drive.google.com/uc?export=download&id={file_id}"
+    url = f"https://drive.google.com/uc?id={file_id}"
     if not os.path.exists(output):
         print(f"⬇️ Downloading {output} ...")
         gdown.download(url, output, quiet=False)
@@ -117,7 +117,11 @@ def api_features():
 @server.route("/api/predict", methods=["POST"])
 def api_predict():
     data = request.json
-    prediction = trained_models.get("Under5", lambda x: "Model not loaded")(data)
+    # fallback: simple response if trained_models not callable
+    if callable(trained_models.get("Under5", None)):
+        prediction = trained_models["Under5"](data)
+    else:
+        prediction = "⚠️ Model not loaded or invalid"
     return jsonify({"prediction": prediction})
 
 @server.route("/api/debug", methods=["GET"])
