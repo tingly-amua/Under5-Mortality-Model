@@ -130,20 +130,21 @@ def index():
 # ---------------------------
 # API endpoint
 # ---------------------------
-@server.route('/api/predict', methods=['POST'])
-def api_predict():
-    data = request.json
-    prediction = trained_models.get("Under5", lambda x: "High Risk")(data)
-    return jsonify({"prediction": prediction})
-
-# Debug API: check features available
-@server.route('/api/features')
+@server.route("/api/features", methods=["GET"])
 def api_features():
-    return jsonify({
-        "Under5": get_top_features("Under5"),
-        "Infant": get_top_features("Infant"),
-        "Neonatal": get_top_features("Neonatal")
-    })
+    if feature_importances.empty:
+        return jsonify({"error": "❌ feature_importances is empty"})
+    
+    result = {}
+    for target in feature_importances["Target"].unique():
+        feats = (
+            feature_importances[feature_importances["Target"] == target]
+            .nlargest(20, "Importance")["Feature"]
+            .tolist()
+        )
+        result[target] = feats
+    
+    return jsonify(result)
 
 # ---------------------------
 # Dash app
