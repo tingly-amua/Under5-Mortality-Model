@@ -94,6 +94,20 @@ app.layout = dbc.Container([
     
     dbc.Row([dbc.Col(html.Div(id="prediction-output", className="text-center"), width=12)])
 ], fluid=True)
+# ---------------------------
+# Callback to populate dropdowns dynamically
+# ---------------------------
+@app.callback(
+    Output("dropdown-under5", "options"),
+    Output("dropdown-infant", "options"),
+    Output("dropdown-neonatal", "options"),
+    Input("predict-btn", "n_clicks")  # can also use a dummy Input like dcc.Interval or simply 0
+)
+def populate_dropdowns(_):
+    under5_opts = [{"label": f, "value": f} for f in get_top_features("Under5")]
+    infant_opts = [{"label": f, "value": f} for f in get_top_features("Infant")]
+    neo_opts = [{"label": f, "value": f} for f in get_top_features("Neonatal")]
+    return under5_opts, infant_opts, neo_opts
 
 # ---------------------------
 # Callback for prediction
@@ -101,13 +115,15 @@ app.layout = dbc.Container([
 @app.callback(
     Output("prediction-output", "children"),
     Input("predict-btn", "n_clicks"),
-    [State(f"dropdown-{t.lower()}", "value") for t in TARGETS]
+    State("dropdown-under5", "value"),
+    State("dropdown-infant", "value"),
+    State("dropdown-neonatal", "value")
 )
-def make_prediction(n_clicks, *features_selected):
+def make_prediction(n_clicks, u5_features, inf_features, neo_features):
     if n_clicks < 1:
         return "ℹ️ Select features first."
 
-    sel = dict(zip(TARGETS, features_selected))
+    sel = {"Under5": u5_features or [], "Infant": inf_features or [], "Neonatal": neo_features or []}
     predictions = {}
 
     for target, features in sel.items():
@@ -116,7 +132,7 @@ def make_prediction(n_clicks, *features_selected):
             continue
 
         import pandas as pd
-        X_new = pd.DataFrame([{f: 0 for f in features}])  # Replace 0s with actual input in prod
+        X_new = pd.DataFrame([{f: 0 for f in features}])  # Replace with actual user input in production
         model = trained_models.get(target)
         if model is None:
             predictions[target] = "⚠️ Model not loaded"
@@ -130,6 +146,7 @@ def make_prediction(n_clicks, *features_selected):
             predictions[target] = f"⚠️ Error predicting: {e}"
 
     return html.Ul([html.Li(f"{t}: {v}") for t, v in predictions.items()])
+
 
 # ---------------------------
 # Run server
