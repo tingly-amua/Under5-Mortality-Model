@@ -7,7 +7,8 @@ scikit-learn==1.7.1
 # gdown==4.7.1  # Uncomment if downloading files from Google Drive
 gunicorn==21.2.0
 tensorflow-cpu==2.15.0
-imbalanced-learn==0.12.3
+imbalanced-learn==0.12.2
+
 
 
 
