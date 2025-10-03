@@ -14,7 +14,7 @@ The workflow covers data cleaning,exploratory data analysis and modeling  to ind
 - Data
 - python-version, Procfile, app.py, model.pkl and requirements.txt files for deployment of the model
 - Readme
-- Tableau visualization located here
+- Tableau visualization located [here](https://public.tableau.com/app/profile/tingly.amua/viz/Under5Mortality_17594781808960/Story5?publish=yes)
 
 **Business understanding**
 
