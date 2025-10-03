@@ -4,7 +4,7 @@ import dash
 from dash import dcc, html
 from dash.dependencies import Input, Output, State
 import pandas as pd
-from flask import Flask
+from flask import Flask, jsonify, request
 import dash_bootstrap_components as dbc
 
 # ---------------------------
@@ -16,9 +16,9 @@ FEATURES_PATH = "feature_importances.pkl"
 def load_pickle(filename):
     with open(filename, "rb") as f:
         return pickle.load(f)
-
+    
 # ---------------------------
-# Load Model and Features
+# Load Model and Features locally
 # ---------------------------
 try:
     trained_models = load_pickle(MODEL_PATH)
@@ -29,8 +29,10 @@ except Exception as e:
 
 try:
     feature_importances = pd.read_pickle(FEATURES_PATH)
+
     if not isinstance(feature_importances, pd.DataFrame):
         raise ValueError("feature_importances.pkl is not a DataFrame")
+
     print("✅ Features loaded successfully")
     print("Targets available:", feature_importances["Target"].unique().tolist())
 except Exception as e:
@@ -38,14 +40,17 @@ except Exception as e:
     feature_importances = pd.DataFrame(columns=["Target", "Feature", "Importance"])
 
 # ---------------------------
-# Helper to get top features per target
+# Extract top features dynamically
 # ---------------------------
 def get_top_features(target, top_n=20):
-    # Match the exact target name in the DataFrame
-    df_target = feature_importances[feature_importances["Target"] == target]
-    if df_target.empty:
+    if feature_importances.empty:
         return []
-    return df_target.nlargest(top_n, "Importance")["Feature"].tolist()
+    filtered = feature_importances[
+        feature_importances["Target"].str.lower() == target.lower()
+    ]
+    if filtered.empty:
+        return []
+    return filtered.nlargest(top_n, "Importance")["Feature"].tolist()
 
 def make_dropdown(target):
     return dcc.Dropdown(
@@ -56,19 +61,65 @@ def make_dropdown(target):
     )
 
 # ---------------------------
-# Flask server
+# Flask server and routes
 # ---------------------------
 server = Flask(__name__)
 
 @server.route("/")
 def index():
     return """
-    <div style="text-align:center;font-family:sans-serif;min-height:100vh;display:flex;flex-direction:column;justify-content:center;align-items:center;color:#004080;">
+    <div style="
+        text-align:center;
+        font-family:sans-serif;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        color: #004080;
+    ">
         <h1>👶 Afya Toto</h1>
         <p>Protecting Children’s Health Through Data Insights</p>
         <a href='/dashboard/'>Go to Dashboard</a>
     </div>
     """
+
+@server.route("/api/features", methods=["GET"])
+def api_features():
+    if feature_importances.empty:
+        return jsonify({"error": "❌ feature_importances is empty"})
+    result = {}
+    for t in feature_importances["Target"].unique():
+        feats = (
+            feature_importances[feature_importances["Target"] == t]
+            .nlargest(20, "Importance")["Feature"]
+            .tolist()
+        )
+        result[t] = feats
+    return jsonify(result)
+
+@server.route("/api/predict", methods=["POST"])
+def api_predict():
+    data = request.json
+    # fallback: simple response if trained_models not callable
+    if callable(trained_models.get("Under5", None)):
+        prediction = trained_models["Under5"](data)
+    else:
+        prediction = "⚠️ Model not loaded or invalid"
+    return jsonify({"prediction": prediction})
+
+@server.route("/api/debug", methods=["GET"])
+def api_debug():
+    """Return debug info for models and features"""
+    debug_info = {
+        "model_loaded": bool(trained_models),
+        "features_loaded": not feature_importances.empty,
+        "feature_importances_shape": feature_importances.shape if not feature_importances.empty else (0, 0),
+        "feature_importances_columns": feature_importances.columns.tolist(),
+        "available_targets": feature_importances["Target"].unique().tolist() if not feature_importances.empty else [],
+        "sample_rows": feature_importances.head(5).to_dict(orient="records") if not feature_importances.empty else []
+    }
+    return jsonify(debug_info)
 
 # ---------------------------
 # Dash app
@@ -146,7 +197,6 @@ def make_prediction(n_clicks, u5_features, inf_features, neo_features):
             predictions[target] = f"⚠️ Error predicting: {e}"
 
     return html.Ul([html.Li(f"{t}: {v}") for t, v in predictions.items()])
-
 
 # ---------------------------
 # Run server
