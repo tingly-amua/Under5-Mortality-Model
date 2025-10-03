@@ -8,5 +8,6 @@ scikit-learn==1.5.2
 gdown==5.2.0
 # tensorflow-cpu==2.15.0
 imbalanced-learn==0.12.3
+dash_bootstrap_components==1.4.2
 
 
