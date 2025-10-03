@@ -1,6 +1,5 @@
 import os
 import pickle
-import gdown
 import dash
 from dash import dcc, html
 from dash.dependencies import Input, Output, State
@@ -9,22 +8,10 @@ from flask import Flask, jsonify, request
 import dash_bootstrap_components as dbc
 
 # ---------------------------
-# Google Drive file IDs
+# Local paths for model & features
 # ---------------------------
-MODEL_ID = "19H7NxVfaAK0Ml23X9jfTewVvZjcuJVhq"      # final_model.pkl
-FEATURES_ID = "1LITbeocbOLTcZBmf0KeBTLcch_03oRi7"   # feature_importances.pkl
-
 MODEL_PATH = "final_model.pkl"
 FEATURES_PATH = "feature_importances.pkl"
-
-def download_file(file_id, output):
-    """Download file from Google Drive by ID"""
-    url = f"https://drive.google.com/uc?id={file_id}"
-    if not os.path.exists(output):
-        print(f"⬇️ Downloading {output} ...")
-        gdown.download(url, output, quiet=False)
-    else:
-        print(f"✅ {output} already exists")
 
 def load_pickle(filename):
     """Safe pickle loader with debug info"""
@@ -32,10 +19,9 @@ def load_pickle(filename):
         return pickle.load(f)
 
 # ---------------------------
-# Download + Load Model and Features
+# Load Model and Features locally
 # ---------------------------
 try:
-    download_file(MODEL_ID, MODEL_PATH)
     trained_models = load_pickle(MODEL_PATH)
     print("✅ Model loaded successfully")
 except Exception as e:
@@ -43,8 +29,7 @@ except Exception as e:
     trained_models = {}
 
 try:
-    download_file(FEATURES_ID, FEATURES_PATH)
-    feature_importances = load_pickle(FEATURES_PATH)
+    feature_importances = pd.read_pickle(FEATURES_PATH)
 
     if not isinstance(feature_importances, pd.DataFrame):
         raise ValueError("feature_importances.pkl is not a DataFrame")
