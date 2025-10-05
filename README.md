@@ -41,7 +41,12 @@ All files used in this project have been sorted and placed in folders specific t
 **Workflow**
 
 1.Data Cleaning
+- Rename DHS codes  such as V012, V013 to interpretable titles, ie. "Respondents current age", "Age in 5 year groups" etc
+- Aligned each variable with their datatype i.e categorical, int, or float
+- Map each column's code to their named counterparts eg. for "Sex of child": {1:"Male",2:"Female"}
+- Handled special code columns such as "When child put to breast" and anthropometric z-scores
 - Removed missing/inconsistent entries
+- Add missingness flags for coluns with > 20% absent data
 - Generated cleaned datasets: u5mr_clean.csv, u5mr_subset.csv
 
 2.Exploratory Data Analysis (EDA)  
