@@ -5,13 +5,14 @@
 </p>
 
 
-**Project Overview**
+**Project Overview**  
 
 This project focuses on analyzing and predicting under-5 mortality rates using demographic,health and social economic indicators.
 
 The workflow covers data cleaning,exploratory data analysis and modeling  to indentify key factors associated with child mortality and build predictive models.
 
 **Repository structure**
+
 All files used in this project have been sorted and placed in folders specific to the tasks they carried out. These folders and their contents include:
 
 - Notebooks: Data cleaning.ipynb (data processing and feature engineering), EDA.ipynb-Exploratory (data analysis and visualization), Statistical_Associations.ipynb, Modelling.ipynb-Machine (learning models and evaluation)
