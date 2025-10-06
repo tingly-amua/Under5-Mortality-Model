@@ -8,3 +8,4 @@ xgboost==2.1.1
 numpy==1.26.4
 pandas==2.2.3
 tensorflow-cpu==2.20.0
+gdown==5.2.0

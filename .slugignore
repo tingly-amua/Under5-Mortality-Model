@@ -8,16 +8,17 @@ Notebooks/
 *.csv
 *.xlsx
 
-# Ignore presentation and images
+# Ignore presentations and images
 presentation.pdf
 Images/
 
 # Ignore local environment files
-*.env
+env/
 venv/
 .venv/
 __pycache__/
 *.pyc
+*.env
 
 # Ignore system or IDE files
 .DS_Store
