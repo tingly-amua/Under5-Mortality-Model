@@ -8,7 +8,7 @@
 *.sav
 *.map
 *.dat
-*.txt
+# *.txt
 
 # Ignore CSV files by default (some may be too large or restricted)
 *.csv

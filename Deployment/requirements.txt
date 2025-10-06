@@ -1,0 +1,10 @@
+dash==3.2.0
+Flask==3.1.2
+gunicorn==23.0.0
+joblib==1.5.2
+plotly==6.3.0
+scikit-learn==1.5.2
+xgboost==2.1.1
+numpy==1.26.4
+pandas==2.2.3
+tensorflow-cpu==2.20.0
