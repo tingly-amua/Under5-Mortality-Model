@@ -1,8 +1,30 @@
-# Prevent large files from being included in Heroku slug
+# Ignore notebooks, local data, and other large files
+*.ipynb
+*.csv
+*.zip
+*.tar
+*.gz
+*.pdf
+*.mp4
+*.mov
+
+# Ignore data directories
+data/
+datasets/
+Images/
+Notebooks/
+
+# Ignore virtual environment or caches
+venv/
+env/
+__pycache__/
+*.pyc
+
+# Keep only the essentials
+presentation.pdf
+app.py
+requirements.txt
+Procfile
 final_model.pkl
 feature_importances.pkl
-Notebooks/
-Images/
-presentation.pdf
-LICENSE
 README.md
