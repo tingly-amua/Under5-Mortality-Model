@@ -1,27 +1,8 @@
-# Ignore notebooks and data-heavy files
+# Prevent large files from being included in Heroku slug
+final_model.pkl
+feature_importances.pkl
 Notebooks/
-*.ipynb
-
-# Ignore large binary/model files
-*.pkl
-*.h5
-*.csv
-*.xlsx
-
-# Ignore presentations and images
-presentation.pdf
 Images/
-
-# Ignore local environment files
-env/
-venv/
-.venv/
-__pycache__/
-*.pyc
-*.env
-
-# Ignore system or IDE files
-.DS_Store
-*.log
-*.bak
-*.swp
+presentation.pdf
+LICENSE
+README.md
