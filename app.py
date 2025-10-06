@@ -7,23 +7,34 @@ import pandas as pd
 from flask import Flask, jsonify, request
 import dash_bootstrap_components as dbc
 import numpy as np
-from sklearn.preprocessing import StandardScaler # Added for simulation
+from sklearn.preprocessing import StandardScaler
+import gdown  # for Google Drive file downloads
 
-# --- Define Constants and Feature Options ---
+# ---------------------------
+# Google Drive File IDs
+# ---------------------------
+MODEL_FILE_ID = "1FSLIzNTnEhn2GCIq7sfXe3meYmPsqeVH"  # final_model.pkl
+FEATURES_FILE_ID = "1J2UJ5jK7BEwboAygxKpwKOUy1d5kN4fF"  # feature_importances.pkl
+
 MODEL_PATH = "final_model.pkl"
 FEATURES_PATH = "feature_importances.pkl"
 
-# Defined key feature options based on the common feature names (cat__Region_X)
-REGION_OPTIONS = [
-    'Baringo', 'Isiolo', 'Kwale', 'Laikipia', 'Makueni', 
-    'Migori', 'Mombasa', 'Nairobi', 'Narok', 'Turkana',
-    'Other/Not specified' # Placeholder for any other region not in the top N
-]
-YES_NO_OPTIONS = ['Yes', 'No']
-TARGETS = ["Under5", "Infant", "Neonatal"]
+# ---------------------------
+# Download Files from Google Drive (if not already present)
+# ---------------------------
+def download_from_gdrive(file_id, output_path):
+    if not os.path.exists(output_path):
+        print(f"⬇️ Downloading {output_path} from Google Drive...")
+        gdown.download(f"https://drive.google.com/uc?id={file_id}", output_path, quiet=False)
+        print(f"✅ Downloaded: {output_path}")
+    else:
+        print(f"✅ Found cached file: {output_path}")
+
+download_from_gdrive(MODEL_FILE_ID, MODEL_PATH)
+download_from_gdrive(FEATURES_FILE_ID, FEATURES_PATH)
 
 # ---------------------------
-# Load Model and Features (No change to loading functions)
+# Load Model and Features
 # ---------------------------
 def load_pickle(filename):
     """Safe pickle loader with debug info"""
@@ -48,12 +59,21 @@ except Exception as e:
     feature_importances = pd.DataFrame(columns=["Target", "Feature", "Importance"])
 
 # ---------------------------
-# Flask server and routes (No changes here, they are for API use)
+# Define Feature Options
+# ---------------------------
+REGION_OPTIONS = [
+    'Baringo', 'Isiolo', 'Kwale', 'Laikipia', 'Makueni',
+    'Migori', 'Mombasa', 'Nairobi', 'Narok', 'Turkana',
+    'Other/Not specified'
+]
+YES_NO_OPTIONS = ['Yes', 'No']
+TARGETS = ["Under5", "Infant", "Neonatal"]
+
+# ---------------------------
+# Flask App Setup
 # ---------------------------
 server = Flask(__name__)
-# Flask routes here (index, api_features, api_predict, api_debug) ...
 
-# NOTE: The Flask routes were omitted here for brevity, but remain in your original file.
 @server.route("/")
 def index():
     return """
@@ -74,7 +94,7 @@ def index():
     """
 
 # ---------------------------
-# Dash app Layout with Drop-downs
+# Dash App Layout
 # ---------------------------
 app = dash.Dash(
     __name__,
@@ -87,45 +107,38 @@ app = dash.Dash(
 app.layout = dbc.Container([
     dbc.Row([dbc.Col(html.H1("Afya-Toto Prediction Dashboard", className="text-center my-4 text-primary"), width=12)]),
     
-    # Input Row for the single most important feature (Numeric)
     dbc.Row([
         dbc.Col(html.Label("Number of Previous Child Deaths (Top Feature):"), width={"size": 4, "offset": 1}),
         dbc.Col(dcc.Input(
             id="input-child-death-history",
             type="number",
-            value=0, # Default value
+            value=0,
             min=0, max=10,
             className="form-control"
         ), width=2),
     ], className="mb-3", justify="start"),
 
-    # Input Row for Categorical Drop-downs
     dbc.Row([
-        # Region Drop-down
         dbc.Col([
             html.Label("Child's Region (County):"),
             dcc.Dropdown(
                 id="input-region",
                 options=[{'label': r, 'value': r} for r in REGION_OPTIONS],
-                value='Kwale', # Defaulting to Kwale (a high-importance feature)
-                placeholder="Select Region",
+                value='Kwale',
                 clearable=False,
             )
         ], width=3),
 
-        # Visited Health Facility Drop-down
         dbc.Col([
             html.Label("Visited Health Facility (Last 12 Months):"),
             dcc.Dropdown(
                 id="input-health-facility",
                 options=[{'label': o, 'value': o} for o in YES_NO_OPTIONS],
-                value='No', # Defaulting to No (a high-importance feature)
-                placeholder="Select Yes/No",
+                value='No',
                 clearable=False,
             )
         ], width=3),
 
-        # Example: Another Drop-down (e.g., Main floor material)
         dbc.Col([
             html.Label("Main Floor Material:"),
             dcc.Dropdown(
@@ -135,34 +148,30 @@ app.layout = dbc.Container([
                     {'label': 'Cement/Tile', 'value': 'Cement/Tile'},
                     {'label': 'Other', 'value': 'Other'}
                 ],
-                value='Dung', # Defaulting to Dung
-                placeholder="Select Material",
+                value='Dung',
                 clearable=False,
             )
         ], width=3),
     ], justify="center", className="mb-5"),
 
-    # Prediction Target Selector
     dbc.Row([
         dbc.Col([
             html.Label("Select Target Variable for Prediction:", className="fw-bold"),
             dcc.Dropdown(
                 id="target-selector",
                 options=[{'label': t, 'value': t} for t in TARGETS],
-                value='Under5', # Default target
+                value='Under5',
                 clearable=False,
             )
         ], width={"size": 4, "offset": 4})
     ], className="mb-4"),
 
-    # Predict Button and Output
     dbc.Row([
         dbc.Col(html.Button("Get Mortality Risk Prediction", id="predict-btn", n_clicks=0, className="btn btn-lg btn-success"), width=12, className="text-center")
     ], justify="center", className="mb-4"),
 
     dbc.Row([dbc.Col(html.Div(id="prediction-output", className="text-center h4 my-4"), width=12)])
 ], fluid=True)
-
 
 # ---------------------------
 # Dash Callbacks
@@ -184,20 +193,14 @@ def make_prediction(n_clicks, target, child_deaths, region, health_facility, flo
         return "❌ Error: Model or target not loaded."
 
     # --- SIMULATED PREDICTION LOGIC ---
-    # This block simulates the prediction process. 
-    # In a real app, you would create the required feature vector, 
-    # ensuring all features used in training (likely over 100) are represented 
-    # with the correct one-hot encoding for the selected inputs.
-
     risk_score = (
         child_deaths * 0.15 + 
         (1 if region == 'Kwale' else 0) * 0.10 +
         (1 if health_facility == 'No' else 0) * 0.08 +
         (1 if floor_material == 'Dung' else 0) * 0.05 +
-        np.random.rand() * 0.1 # Noise for simulation
+        np.random.rand() * 0.1
     )
     
-    # Map the risk score to a simple risk level
     if risk_score > 0.3:
         risk_level = "HIGH RISK! (Predicted Probability: ~90%)"
         style = {"color": "red"}
@@ -209,7 +212,6 @@ def make_prediction(n_clicks, target, child_deaths, region, health_facility, flo
         style = {"color": "green"}
 
     return html.Span(f"Prediction for {target}: {risk_level}", style=style)
-
 
 # ---------------------------
 # Run server
