@@ -90,11 +90,11 @@ The "Facility Visits (last 12 months) vs Under-5 Mortality" chart clearly indica
 
 3.Modelling
 Machine models applied:
-- logistic regression
-- Gradient boosting
-- KerasClassifier(Neural Network)
-- Stacking Ensamble(best model):
-
+- logistic regression-established as the baseline to understand the linear separability of the data. The `baseline_logistic` function is used to train the model, generate predictions, calculate performance metrics (F2 Score, ROC-AUC, PR-AUC), and visualize the results (Confusion Matrix, ROC/PR Curves) for each target.
+- Gradient boosting-to capture more complex, non-linear relationships. Hyperparameter tuning is performed using `GridSearchCV` with `StratifiedKFold` cross-validation to maximize the **F2 Score**, which prioritizes identifying true mortality cases.
+- Deep Neural Network (DNN) Classifier with SMOTE-To address the class imbalance common in mortality data, we utilize **SMOTE** (Synthetic Minority Over-sampling Technique) integrated into the training process before the network sees the data. The DNN is wrapped using `KerasClassifier` for compatibility with scikit-learn's pipeline and grid search framework.
+- Random Forest Classifier-We tuned the model's structure using `GridSearchCV` to find the optimal balance between the number of trees (`n_estimators`) and tree depth (`max_depth`).
+- Stacking Ensamble(best model)-This advanced ensemble method uses the predictions of the best-performing individual models (base estimators) as input features for a final **meta-learner**. This often results in slight performance gains and increased model robustness
 
 Perfomance evaluation with metrics(accuracy,precision,recall,F1).
 Feature importance analysis with SHAP.
@@ -110,6 +110,14 @@ This suggests that the relationship between the features and mortality is comple
     * **ROC-AUC** scores (e.g., up to 0.984 for Under-5), indicating excellent overall separability of the classes. However, the **PR-AUC** scores, which focus purely on the positive class, are more reflective of the predictive challenge posed by the imbalanced nature of the data.
 
 3.  **Future Focus:** The **Stacking Ensemble** model will be selected for subsequent steps, including detailed **Feature Importance analysis** and deployment, given its consistent and superior performance across all critical metrics.
+
+
+**Recommendations**
+- Priotize High-risk families:focus on families with prior deaths through targeted ,recurring postnatal care.
+- Invest in maternal education: stregthen maternal education to reduce demographic risks and boost child survival.
+- Address basic needs: tackle nutrition,clean water and housing through multi-sectoral policy solutions.
+- Close demographic gaps: Reallocate resources to underserved high mortality regions with pooor health access.
+
 
 **Data Availability Disclaimer**
 
